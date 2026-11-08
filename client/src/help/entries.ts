@@ -1,0 +1,372 @@
+import { BEHAVIOUR as B } from "../../../shared/behaviour.js";
+import { AGENT_EXTRAS } from "../../../shared/agent.js";
+
+/**
+ * What Alt-click (⌥-click) says about each control. A card says only what the label doesn't:
+ * what follows from it — for what the model is sent, for other threads, for your computer — what
+ * it keeps safe, and whether it can be undone. Plain words, a sentence to three, no names from the
+ * code. A control with nothing to add has no entry; its card says so.
+ *
+ * What an action does is said once, in shared/behaviour.ts, and a control that runs one shows those
+ * words (`B.<action>.help`), so the help and the tooltips can't drift apart. What's written here
+ * is only about the screen itself: marks, states and areas.
+ *
+ * A control is recognised by what it already is on screen (a CSS selector, and its label where
+ * several share one), so nothing in the components refers to this file. When you Alt-click, the
+ * help looks at the element you clicked, then its parents, and at each one takes the first entry
+ * here that matches — so specific entries go before general ones, and a selector shared by several
+ * controls needs scoping (`.msg-actions .act`, not `.act`). An `area` entry describes a region,
+ * and is shown only when the click wasn't on a control of its own.
+ *
+ * Every statement must be how the code behaves (client/src, server/src).
+ */
+
+export interface Match {
+  css: string;
+  /** The control's own label (its text or aria-label) must match this. */
+  label?: RegExp;
+}
+
+export interface Entry {
+  id: string;
+  title: string;
+  match: Match[];
+  text: string;
+  area?: boolean;
+}
+
+const m = (css: string, label?: RegExp): Match => ({ css, label });
+const item = (label: RegExp) => m(".menu-item", label);
+
+export const ENTRIES: Entry[] = [
+  // ── Menu items (menus open in a layer of their own; matched by their label) ──────────────
+  { id: "menu.name", title: "Name it from the conversation", match: [item(/^(Name it from the conversation|Naming…)$/)],
+    text: B.generate_title.help },
+  { id: "menu.summarize", title: "Summarize…", match: [item(/^Summarize…$/)],
+    text: B.summarize.help },
+  { id: "menu.branch", title: "Branch from here", match: [item(/^Branch from here$/)],
+    text: B.branch_thread.help },
+  { id: "menu.add-message-here", title: "Add a message here", match: [item(/^Add a message here$/)],
+    text: B.insert_message.help },
+  { id: "menu.branches", title: "Branches…", match: [item(/^Branches…$/)],
+    text: "Every branch of this conversation, as a tree, with where each was taken. Choosing one opens it at that point." },
+  { id: "menu.write-again", title: "Write it again", match: [item(/^Write it again$/)],
+    text: B["revise_summary:again"].help },
+  { id: "menu.write-again-draft", title: "Write it again from scratch", match: [item(/^Write it again from scratch$/)],
+    text: B.revise_summary.help },
+  { id: "menu.duplicate-template", title: "Duplicate template", match: [item(/^Duplicate template$/)],
+    text: B["duplicate_thread:template"].help },
+  { id: "menu.duplicate-thread", title: "Duplicate thread", match: [item(/^Duplicate thread$/)],
+    text: B.duplicate_thread.help },
+  { id: "menu.make-template", title: "Make a template from this", match: [item(/^Make a template from this$/)],
+    text: B.make_template.help },
+  { id: "menu.delete-template", title: "Delete template", match: [item(/^Delete template…$/), m(".dialog-confirm .btn-danger", /^Delete template$/)],
+    text: B["delete_thread:template"].help },
+  { id: "menu.delete-thread", title: "Delete thread", match: [item(/^Delete thread…$/), m(".dialog-confirm .btn-danger", /^Delete thread$/)],
+    text: B.delete_thread.help },
+  { id: "menu.folder-choice", title: "Move to a folder", match: [m(".menu-item[role='menuitemradio']")],
+    text: B.move_thread.help },
+  { id: "menu.attach", title: "Send a library item with it…", match: [item(/^Send a library item with it…$/)],
+    text: B["place_item:with_message"].help },
+  { id: "menu.insert-below", title: "Insert a message below…", match: [item(/^Insert a message below…$/)],
+    text: `${B.insert_message.help} To go another way from here instead, branch from here.` },
+  { id: "menu.delete-message", title: "Delete message", match: [item(/^Delete message$/)],
+    text: B.delete_message.help },
+  { id: "menu.move-to-library", title: "Move to the library", match: [item(/^Move to the library$/)],
+    text: B.convert_directive_to_note.help },
+  { id: "menu.unpin", title: "Unpin", match: [item(/^Unpin$/)],
+    text: B.unpin_directive.help },
+  { id: "menu.separate-copy", title: "Use a separate copy", match: [item(/^Use a separate copy in this (thread|template)$/)],
+    text: B.use_own_copy.help },
+  { id: "menu.remove-item", title: "Remove from this thread", match: [item(/^Remove from this (thread|template)$/)],
+    text: B.remove_item.help },
+  { id: "menu.every-reply", title: "Send with every reply", match: [item(/^Send with every reply$/)],
+    text: B.place_item.help },
+  { id: "menu.add-here", title: "Add to this thread", match: [item(/^Add to this (thread|template)$/), m(".act", /^Add$/)],
+    text: B.place_item.help },
+  { id: "menu.next-message", title: "Send with my next message", match: [item(/Send with my next message/)],
+    text: "It goes with the message you send next: right after it, at that point in the conversation rather than at the top, and it drops out when that message isn't sent. One already sent with every reply here stays where it is." },
+  { id: "menu.edit-pin", title: "Edit", match: [item(/^Edit$/)],
+    text: B.update_directive.help },
+  { id: "menu.edit", title: "Edit the text", match: [item(/^Edit the text$/)],
+    text: B.update_note.help },
+  { id: "menu.rename", title: "Rename", match: [item(/^Rename$/)],
+    text: `A thread's name is only for you; the model never sees it. ${B["update_note:name"].help}` },
+  { id: "menu.move", title: "Move up / Move down", match: [item(/^Move (up|down)$/)],
+    text: "Order matters: it's the order the model reads them in — for template steps, the order a run takes them." },
+  { id: "menu.delete-step", title: "Delete step", match: [item(/^Delete step$/)],
+    text: B.remove_step.help },
+  { id: "menu.duplicate-note", title: "Duplicate", match: [item(/^Duplicate$/)],
+    text: B.duplicate_note.help },
+  { id: "menu.delete-note", title: "Delete a library item", match: [item(/^Delete…$/), m(".ctxp-confirm"), m(".note-editor .btn", /^Delete…?$/)],
+    text: B.delete_note.help },
+  { id: "menu.all", title: "Include all / Exclude all", match: [item(/^(Include all|Exclude all)$/)],
+    text: B.set_excluded_all.help },
+  { id: "menu.hide-excluded", title: "Show / hide excluded messages", match: [item(/^(Show|Hide) excluded messages$/)],
+    text: "Only changes your view — nothing about what the model gets. Excluded messages are already not sent; this hides them from the conversation so they don't take up space. The choice is remembered across sessions." },
+  { id: "menu.folder-rename", title: "Rename folder", match: [item(/^Rename folder$/)],
+    text: B.rename_folder.help },
+  { id: "menu.folder-remove", title: "Remove folder", match: [item(/^Remove folder$/)],
+    text: B.delete_folder.help },
+
+  // ── The sidebar ─────────────────────────────────────────────────────────────────────────
+  { id: "sb.workspace", title: "Workspace", match: [m(".ws-switch")],
+    text: "Each workspace has its own threads, folders and library, and none of them cross to another. It also has its own folder on your computer where its agents start — but agents aren't confined to it and can reach other workspaces' folders." },
+  { id: "sb.search", title: "Search", match: [m(".sb-search")],
+    text: "Searches what every card in this workspace shows now — branches, excluded messages and the threads your templates' runs made included — so it finds things the model no longer sees. A text several cards show — a card and its copies in branches — comes up once, with the other threads it's in listed under it to pick from. The earlier texts in a card's history, and deleted messages, aren't found." },
+  { id: "sb.new-thread", title: "New thread", match: [m(".sb-new-thread")],
+    text: B.create_thread.help },
+  { id: "sb.new-folder", title: "New folder", match: [m(".sb-more-btn", /New folder/)],
+    text: B.create_folder.help },
+  // A closed folder's marks come first: they use the same classes as a thread's.
+  { id: "sb.folder-mark", title: "Waiting inside", match: [m(".folder-toggle .row-mark")],
+    text: "Something in this folder needs you, and the dot takes the colour of the most urgent: coral, something failed; amber, a summary to review; white, a new result." },
+  { id: "sb.failed", title: "Something failed", match: [m(".row-mark.is-failed")],
+    text: "Something here failed or was interrupted, and you haven't seen it: on its card, or — for a summary, a naming attempt or a reply written again that kept the one it had — in a notice above the message box. Opening the thread shows what and why; a notice stays until you dismiss it. On a template, this covers its runs and the branches taken from them." },
+  { id: "sb.review", title: "A summary to review", match: [m(".row-mark.is-review")],
+    text: "A summary is waiting for you. Until you use it, nothing changes in what the model gets." },
+  { id: "sb.new", title: "New result", match: [m(".row-mark.is-new")],
+    text: `A reply, an agent's result or a template run finished, and you haven't had it on screen since. ${B.mark_seen.help}` },
+  { id: "sb.folder-working", title: "Working inside", match: [m(".folder-toggle .spinner")],
+    text: "Work is under way in a thread in this closed folder — a reply, an agent or a template run. It carries on whether the folder is open or closed." },
+  { id: "sb.folder-open-thread", title: "Your open thread is in here", match: [m(".folder-toggle .live-dot.is-quiet")],
+    text: "The thread you're looking at is in this closed folder. Opening the folder shows it." },
+  { id: "sb.working", title: "Working", match: [m(".sidebar .spinner")],
+    text: "Work is under way in this thread. It carries on if you switch threads or close this window." },
+  { id: "dl.branches", title: "Branches", match: [m(".branches-dialog")],
+    text: "Each is a thread of its own, taken from the one above it at the card quoted. Nothing done in one reaches another, except library items, which they share." },
+  { id: "sb.branch", title: "A branch", match: [m(".thread-row.is-branch")],
+    text: "Listed under the thread it was taken from — or, if that one was deleted, the nearest one still there — and it moves with that conversation. It's a thread of its own: its own messages, pins and switches, sharing only library items." },
+  { id: "sb.template", title: "A template", match: [m(".thread-row:has(.tree-icon.is-template)")],
+    text: "A repeatable procedure. Each run makes a fresh thread, listed on the template's page — with any branches taken from it — rather than here, so runs don't crowd your list." },
+  { id: "sb.folder", title: "A folder", match: [m(".folder-row")],
+    text: "Collapsed, it still shows a dot in the colour of the most urgent thing inside that needs you, a spinner while something inside is working, and a ring when the thread you have open is inside." },
+
+  // ── Workspaces ──────────────────────────────────────────────────────────────────────────
+  { id: "ws.item", title: "A workspace", match: [m(".ws-item")],
+    text: "The path under its name is the folder on your computer where its agents start." },
+  { id: "ws.new", title: "New workspace", match: [m(".ws-new"), m(".ws-create")],
+    text: B.create_workspace.help },
+
+  // ── The thread header ───────────────────────────────────────────────────────────────────
+  { id: "th.title", title: "Thread name", match: [m(".thread-title-btn")],
+    text: B.rename_thread.help },
+  { id: "th.panel", title: "Context / Run", match: [m(".panel-toggle:not(.empty-ws-library)")],
+    text: "A dot on it means the thread is more than the model can read at once." },
+  { id: "th.origin", title: "On a template's page", match: [m(".crumb-link")],
+    text: "This thread lives on that template's page: it's one of its runs' threads, or a branch taken from one. Changing the template's steps or pins won't change it, but library items are shared, so editing one changes it here too. Deleting the template deletes this thread as well." },
+
+  // ── The message box ─────────────────────────────────────────────────────────────────────
+  { id: "cb.without", title: "Add without reply", match: [m(".btn-send", /Add without reply/)],
+    text: B.send_message.help },
+  { id: "cb.with", title: "Add and get reply", match: [m(".btn-send", /Add and get reply/)],
+    text: B["send_message:reply"].help },
+  { id: "cb.send-followup", title: "Send to agent", match: [m(".btn-agent-primary", /Send to agent/)],
+    text: B.agent_follow_up.help },
+  { id: "cb.start-agent", title: "Start agent", match: [m(".btn-agent-primary")],
+    text: B.dispatch_agent.help },
+  { id: "cb.preview-brief", title: "Preview the brief", match: [m("button", /^Preview the brief$/)],
+    text: "Shows exactly what the agent will get: the whole thread, as a reply would get it, then your task. A card still being written shows as a placeholder: the agent waits for it." },
+  { id: "cb.agent-mode", title: "Agent task", match: [m(".mode-agent")],
+    text: "Instead of a written reply, an agent acts on your computer — with your full permissions — using the thread as its briefing." },
+  { id: "cb.model", title: "Model for this thread", match: [m(".composer-model")],
+    text: B.set_thread_model.help },
+  { id: "cb.chip", title: "With your next message", match: [m(".composer-chip")],
+    text: "It goes with the message you send next, right after it. If it goes with another message here now, it moves to the new one; one sent with every reply here stays where it is." },
+  { id: "cb.queue", title: "Waits its turn", match: [m(".composer-queue")],
+    text: "A card waits until every card above it is written, so it's written from all of them. Yours starts once the cards above it still being written are done." },
+  { id: "cb.follow", title: "Following up", match: [m(".composer-follow")],
+    text: B.agent_follow_up.help },
+  { id: "cb.task", title: "Agent task", match: [m(".composer-input[aria-label='Agent task']")],
+    text: "Nothing runs until you start it. Then the agent acts on your computer with your full permissions." },
+  { id: "cb.input", title: "Message box", match: [m(".composer-input[aria-label='Message']")],
+    text: "Adding is free: nothing goes to the model until you ask for a reply. What you type is kept with the thread, on the server, until you send it. A library item dropped here goes with your next message." },
+
+  // ── Message buttons ─────────────────────────────────────────────────────────────────────
+  { id: "msg.edit", title: "Edit", match: [m(".msg-actions .act", /^Edit$/)],
+    text: `${B.edit_message.help} To go another way without changing this thread, branch instead.` },
+  { id: "msg.save", title: "Save", match: [m(".msg-edit button", /^Save$/)],
+    text: "Saves over it, here; the text it had stays in its history. Nothing else changes: replies already written stay as they are — each keeps what it was sent." },
+  { id: "msg.save-reply", title: "Save and get a reply", match: [m(".msg-edit button", /^Save and get (a new )?reply$/)],
+    text: B["edit_message:reply"].help },
+  { id: "msg.regenerate-agent", title: "Regenerate", match: [m(".msg-agent .msg-actions .act", /^Regenerate$/)],
+    text: B["regenerate:agent"].help },
+  { id: "msg.regenerate", title: "Regenerate", match: [m(".msg-actions .act", /^Regenerate$/)],
+    text: B.regenerate.help },
+  { id: "msg.history", title: "History", match: [m(".act-history")],
+    text: "Every text this card has had, newest first — yours, a model's or an agent's, finished or not — and for each one a run wrote, the exact prompt it was written from. A copy made by a branch or a duplicate says where it came from. Nothing in it can be changed." },
+  { id: "msg.edited", title: "Edited by you", match: [m(".msg-edited")],
+    text: "You changed what the model or agent wrote, and your text is what's sent now. What it wrote is in the card's history, with the prompt it was written from." },
+  { id: "msg.pin", title: "Pin", match: [m(".msg-actions .act", /^Pin$/), m(".pin-form .btn-primary")],
+    text: B.pin_directive.help },
+  { id: "msg.pin-save", title: "Save to the library", match: [m("button", /^Save to the library$/)],
+    text: "Like a pin, but other threads can use it too: it's saved to the library, named from its first line, and sent with every reply here, after the pins." },
+  { id: "msg.note-switch", title: "This item's switch", match: [m(".msg-note .act", /^(Include|Exclude)$/), m(".ctxp-item.is-on-message .check")],
+    text: `${B.set_excluded.help} The message itself is sent either way.` },
+  { id: "msg.stop", title: "Stop", match: [m(".msg .act", /^(Stop|Stopping…|Cancel)$/)],
+    text: B.cancel_run.help },
+  { id: "msg.include", title: "Include", match: [m(".msg .act", /^Include$/)],
+    text: B["set_message_flags:included"].help },
+  { id: "msg.exclude", title: "Exclude", match: [m(".msg .act", /^Exclude$/)],
+    text: B.set_message_flags.help },
+  { id: "msg.fold", title: "Fold", match: [m(".msg-actions .act", /^Fold$/)],
+    text: B["set_message_flags:folded"].help },
+  { id: "msg.prompt", title: "Prompt / Brief", match: [m(".msg-actions .act", /^(Prompt|Brief)$/)],
+    text: "A record of exactly what it was sent — the prompt for a reply, the brief for an agent — and which model, made when it started. It never changes, even if you edit the thread afterwards, so you can always see why it answered as it did." },
+  { id: "msg.follow", title: "Follow up", match: [m(".msg-actions .act", /^Follow up$/)],
+    text: B.agent_follow_up.help },
+  { id: "msg.steps", title: "Show its steps", match: [m(".agent-steps-toggle")],
+    text: "Everything the agent did, in order — what it said, each tool it used and what came back — read from Claude Code's own output and kept so you can check its work later. A tool that reported a failure is marked." },
+  { id: "msg.changes", title: "What it changed", match: [m(".agent-changes")],
+    text: "Compares the workspace folder from before the agent started with after it ended, so it lists every file that changed there while it ran — by its tools, its commands or anything else. Outside the folder, only the paths its editing tools named are known; its commands may have changed more. Files inside .git folders aren't listed. If the server stopped suddenly while it ran (its terminal closed, it was killed, or Postgres restarted), there's no after to compare, so the card says what it changed wasn't recorded." },
+  { id: "msg.note", title: "A library item on this message", match: [m(".msg-note")],
+    text: "Sent right after this message, as long as the message is sent. A library item has one place in a thread, so it goes nowhere else here." },
+  { id: "msg.failed", title: "Failed", match: [m(".run-status")],
+    text: "Try again writes it again in the same place; what's below stays. On an agent, it runs the agent again — on your computer, with your full permissions." },
+  { id: "msg.cutoff", title: "Cut off", match: [m(".run-note.is-cutoff")],
+    text: "The model stopped at the most a reply may write, so this ends part-way. Later replies see it as it is. Regenerate writes it again; asking for less at once, or splitting the question, keeps it under the limit." },
+  { id: "msg.stopped", title: "Stopped", match: [m(".run-note")],
+    text: "A reply that was stopped or interrupted keeps what it had written, and later replies see it, unfinished as it is; Try again writes it again in the same place. A stopped agent keeps its steps but no result, so nothing of it is sent on. A server restart interrupts whatever was running; replies, summaries and names still waiting their turn start again, but an agent waiting to start doesn't. A copy taken while a card was being written has what it had then." },
+  { id: "msg.awaiting", title: "Get reply", match: [m(".turn.awaiting")],
+    text: B.request_reply.help },
+  { id: "msg.branch-point", title: "Branches from here", match: [m(".branch-point")],
+    text: "Branches taken at this card. Each started with everything up to here, as it was then — with the pins and library items too — and each is a thread of its own, so any of them may have been edited since. ‹ › swaps to the next one, keeping this point where it is on screen. Only library items are shared." },
+  { id: "msg.row", title: "A message on one line", match: [m(".msg-row")],
+    text: "Shrunk to one line for one of two reasons. Folded: still sent to the model in full. Not sent: excluded, so the model doesn't see it." },
+
+  // ── Inserting ───────────────────────────────────────────────────────────────────────────
+  { id: "ins.gap", title: "Add here, or branch from here", match: [m(".gap-btn")],
+    text: "Add a message here: the messages below stay where they are and their replies aren't redone. Branch from here: a thread of its own with everything up to this point; this thread stays as it is." },
+  { id: "ins.insert", title: "Insert", match: [m(".insert-form button", /^Insert$/)],
+    text: B.insert_message.help },
+  { id: "ins.insert-reply", title: "Insert and get reply", match: [m(".insert-form button", /^Insert and get reply$/)],
+    text: B["insert_message:reply"].help },
+
+  // ── Summaries ───────────────────────────────────────────────────────────────────────────
+  { id: "sum.use", title: "Use this summary", match: [m("button", /^Use this summary$/), m(".summary-line .act-include")],
+    text: `${B.set_summary_status.help} It stays in use until you exclude or discard it.` },
+  { id: "sum.write-again", title: "Write it again", match: [m(".summary-review button", /^Write it again$/)],
+    text: B.revise_summary.help },
+  { id: "sum.revise", title: "Revise", match: [m("button", /^Revise…?$/)],
+    text: B.revise_summary.help },
+  { id: "sum.review", title: "A summary to review", match: [m(".summary-review")],
+    text: "Shown where it would go. Nothing changes in what the model gets until you choose Use this summary." },
+  { id: "sum.from", title: "What it's from", match: [m(".summary-turn .act", /what it's from$/)],
+    text: "The exact texts it was written from, as its run recorded them when it started — even if a card has been edited since — with the library items that went with those messages. While it's in use, they aren't sent." },
+  { id: "sum.in-use", title: "A summary in use", match: [m(".summary-turn")],
+    text: "The model gets this, where its first card was, instead of the cards it was written from — so whatever the summary missed, it doesn't know. Excluding it puts those cards back, as they are now." },
+  { id: "sum.not-sent", title: "A summary that isn't sent", match: [m(".summary-line")],
+    text: "Not reaching the model: it's excluded, or a summary in use stands in for some of the same messages — Include uses this one and sets that one aside. Its cards are sent as they are, or within the summary in use." },
+  { id: "sum.pick", title: "Picking cards to summarize", match: [m(".selection-bar")],
+    text: "Click each card to include — messages, replies, agents' results or summaries in use, sent or not, in any order; click one again to leave it out. The summary is written from exactly those, in the order they appear, and sits where the first of them is." },
+
+  // ── The bar above the box, and runs ─────────────────────────────────────────────────────
+  { id: "att.failed", title: "Failed elsewhere", match: [m(".attention-item.is-failed")],
+    text: "Something failed where no card shows it — a reply written again (the reply is kept as it was), a summary or a naming attempt. Dismissing only clears this notice." },
+  { id: "att.bar", title: "Needs your attention", match: [m(".attention")],
+    text: "Failures no card shows — a reply written again that failed, or a summary or naming attempt that failed — gathered here so nothing slips by. Each stays until you dismiss it." },
+  { id: "run.origin", title: "A run's thread", match: [m(".origin-bar")],
+    text: "Made by a template run; its number is its place among the template's runs. While the run is going you can work here too: each next step is added at the end, written from the thread as it is then; Stop run ends it where it is. Its pins and messages are its own, so changes here don't touch the template and template changes don't reach it — except library items, which they share." },
+  { id: "run.new-since", title: "New since you were here", match: [m(".new-since")],
+    text: `What's below finished while you were away — results you hadn't had on screen. ${B.mark_seen.help}` },
+
+  // ── A template's starting pins and library items (they reuse the panel's sections) ──────
+  { id: "tp.start-pin", title: "A pin every run starts with", match: [m(".tpl-start .ctxp-pin")],
+    text: "Copied into each run's thread when it starts, where it's sent at the top of every reply. Changing it affects future runs only." },
+  { id: "tp.start-item", title: "A library item every run starts with", match: [m(".tpl-start .ctxp-item")],
+    text: "Each run's thread uses this same library item rather than a copy, so editing it reaches every run thread that uses it, past runs included." },
+  { id: "tp.start", title: "Every run starts with", match: [m(".tpl-start [aria-label='Pinned']"), m(".tpl-start [aria-label='From the library']"), m(".tpl-start")],
+    text: "Pins are copied into each new run's thread, so changing them affects future runs only. Library items are shared, not copied: editing one changes it for every thread that uses it, run threads included." },
+
+  // ── The context panel ───────────────────────────────────────────────────────────────────
+  { id: "cx.prompt", title: "Exact prompt", match: [m(".ctxp-prompt")],
+    text: "Word for word what the next reply would be sent, built by the same code as the real one — so there are no surprises. A card above still being written shows as a placeholder: the reply waits for it." },
+  { id: "cx.alert", title: "Context limit reached", match: [m(".ctxp-alert")],
+    text: "The thread is more than the model can read at once — by an estimate, corrected with the last reply's real count when there is one — so a reply would fail. Nothing is cut or summarized for you." },
+  { id: "cx.pin-switch", title: "Send this pin, or not", match: [m("[aria-label='Pinned'] .check")],
+    text: B["set_excluded:directive"].help },
+  { id: "cx.pin-new", title: "Pin", match: [m("[aria-label='Pinned'] .ctxp-section-head button", /Pin/)],
+    text: B.pin_directive.help },
+  { id: "cx.pin", title: "A pinned item", match: [m(".ctxp-pin")],
+    text: "Sent at the top of every reply in this thread, in this order, ahead of the conversation — never summarized away. Move it to the library to use it in other threads." },
+  { id: "cx.pinned", title: "Pinned", match: [m("[aria-label='Pinned']")],
+    text: "Kept at the top of every reply in this thread — the place for decisions, constraints and facts that mustn't get lost as the thread grows." },
+  { id: "cx.item-switch", title: "Send with every reply, or not", match: [m(".ctxp-item:not(.is-on-message) > .ctxp-row-line > .check")],
+    text: B.set_excluded.help },
+  { id: "cx.item-detail-warn", title: "Used in other threads", match: [m(".ctxp-detail-warn")],
+    text: "To change it here only, choose Use a separate copy from its menu. Otherwise, duplicate it in the library and use the copy." },
+  { id: "cx.item-goes", title: "The message it goes with", match: [m(".ctxp-goes")],
+    text: "It's sent right after this message whenever the message is sent. Pointing at it marks the message in the conversation; clicking takes you there." },
+  { id: "cx.item-detail", title: "Reading an item", match: [m(".ctxp-detail")],
+    text: `${B.update_note.help} Unsaved edits wait while you look elsewhere.` },
+  { id: "cx.tag", title: "Note on this row", match: [m(".ctxp-tag")],
+    text: "“With one message”: sent only with the message it goes with. “Copy”: a separate copy of a shared library item, with the same name. “With your next message”: it goes with the next message you send. “Unsaved edit”: your changes aren't saved yet." },
+  { id: "cx.item-on-msg", title: "An item with one message", match: [m(".ctxp-item.is-on-message")],
+    text: "Sent right after the message it goes with instead of at the top of every reply — so it reaches the model at that point in the conversation, and drops out if that message isn't sent." },
+  { id: "cx.item", title: "A library item in this thread", match: [m(".ctxp-item")],
+    text: "Sent with every reply, after the pins, in this order. It's the library's one copy, shared with every thread that uses it — edit it here and they all change." },
+  { id: "cx.in-thread", title: "In this thread", match: [m("[aria-label='In this thread']"), m("[aria-label='From the library']")],
+    text: "Each library item this thread uses has one place here: with every reply, after the pins and in this order, or with one message. The thread uses the library's copies rather than its own, so edits in the library reach it." },
+  { id: "cx.lib-new", title: "New library item", match: [m(".ctxp-library-top button", /New/)],
+    text: B.create_note.help },
+  { id: "cx.lib-item", title: "A library item", match: [m(".ctxp-lib")],
+    text: "Reference text shared across the workspace. There's one copy, so every thread that uses it sees your edits. Drag it onto a message to send it with that message, or onto the message box for your next one." },
+  { id: "cx.library", title: "Library", match: [m("[aria-label='Library']")],
+    text: "Threads use these items rather than copying them, so one edit reaches every thread that uses it. Each is sent under its name, as a heading." },
+
+  // ── The exact prompt ────────────────────────────────────────────────────────────────────
+  { id: "ip.this", title: "As it was sent", match: [m(".inspector .tab", /^(This reply|This agent's brief)$/)],
+    text: "Recorded when it started, exactly as it was sent, with the model it went to. Later edits to the thread don't change it." },
+  { id: "ip.agent", title: "Next agent", match: [m(".inspector .tab", /Next agent/)],
+    text: `The whole thread as a reply would get it — pins, library items in use and every message that's sent — then the task. Nothing is left out to fit. Claude Code adds its own built-in instructions and whatever your own setup has (${AGENT_EXTRAS}), none of which can be shown, and starts with CLAUDE.md files, the folder's project settings and its memory switched off.` },
+  { id: "ip.placeholder", title: "A placeholder", match: [m(".prompt-placeholder-tag"), m(".prompt-block.is-placeholder")],
+    text: "A card above is still being written. The run waits for it and is sent its finished text; here it shows what's written so far." },
+  { id: "ip.sources", title: "What's sent now", match: [m(".inspector .tab-toggle"), m(".sent-now")],
+    text: "What goes to the model, in the order it reads it: pins, library items, then the conversation — an item with one message goes right after that message. Switching something off here is the same as switching it off where it lives." },
+  { id: "ip.size", title: "Size", match: [m(".inspector .dialog-hint", /tokens$/)],
+    text: "A rough estimate of length, or the real count a past reply reported. Models measure text in tokens — about four characters each — and each model has a limit." },
+  { id: "ip.dialog", title: "The exact prompt", match: [m(".inspector")], area: true,
+    text: "Word for word what the model gets: your pins, then library items, then the conversation — with an item that goes with a message in its place." },
+
+  // ── Templates ───────────────────────────────────────────────────────────────────────────
+  { id: "tp.kind", title: "What this step does", match: [m("[aria-label='What this step does']"), m(".step-kind")],
+    text: "With reply, the run waits for the model before going on. An agent step runs an agent on your computer, with your full permissions, every time the template runs." },
+  { id: "tp.blank", title: "A blank", match: [m(".var-chip")],
+    text: "Filled in each time the template runs: {{name}} must be filled; {{name|default}} falls back to its default; @ blanks such as {{@date_long}} fill themselves in. Use one form per name — the first use decides. Only steps are filled in, and they're checked before a run starts." },
+  { id: "tp.step", title: "A step", match: [m(".step")],
+    text: B.update_step.help },
+  { id: "tp.run", title: "Run template", match: [m(".run-go .btn-primary", /Run template/)],
+    text: B.run_template.help },
+  { id: "tp.live", title: "Running", match: [m(".run-live"), m(".run-live-actions button", /Stop/)],
+    text: "Stopping ends the run where it is; what's already in its thread stays." },
+  { id: "tp.branch", title: "A branch of a run", match: [m(".run-branch")],
+    text: "A branch taken from a run's thread, or from one of its branches. It lives here, on the template's page, with that run." },
+
+  // ── Dialogs and notices ─────────────────────────────────────────────────────────────────
+  { id: "dl.editor", title: "Library editor", match: [m(".note-editor")],
+    text: `${B.update_note.help} ${B["update_note:name"].help}` },
+  { id: "dl.toast", title: "Notice", match: [m(".toast")],
+    text: "A short notice of what just happened. Where there's an obvious next step, such as opening a copy you just made, its button is here. Nothing here undoes anything." },
+
+  // ── Any menu button that has nothing more specific ──────────────────────────────────────
+  { id: "menu.trigger", title: "Menu", match: [m("[aria-haspopup='menu']")],
+    text: "Open it, then click any item the same way to see what it does." },
+
+  // ── Whole areas, when the click wasn't on a control ─────────────────────────────────────
+  { id: "area.user", title: "Your message", match: [m(".msg.msg-user")], area: true,
+    text: "Sent with every reply unless you exclude it or a summary in use stands in for it. Editing it changes it here, keeping what it said before in its history; replies already written keep what they were sent." },
+  { id: "area.reply", title: "A reply", match: [m(".msg.msg-assistant")], area: true,
+    text: "Later replies see it like any other message, so a mistake in it can carry forward — edit, regenerate or exclude it if it's wrong. What it was written from is recorded with it." },
+  { id: "area.agent", title: "An agent's result", match: [m(".msg.msg-agent")], area: true,
+    text: "Later replies see this report, headed with its task — not the agent's step-by-step work. What it changed on your computer stays changed." },
+  { id: "area.convo", title: "The conversation", match: [m(".convo")], area: true,
+    text: "This is what the model gets, in this order, except excluded messages, cards with nothing in them, and wherever a summary stands in for the cards it was written from. Branches aren't sent: each is a thread of its own." },
+  { id: "area.composer", title: "The message box", match: [m(".composer")], area: true,
+    text: "Adding a message is free. Only asking for a reply, or starting an agent, sends anything to the model." },
+  { id: "area.context", title: "Context", match: [m(".ctxp")], area: true,
+    text: "Everything switched on here goes to the model with every reply, before the conversation — pins first, then library items — except an item that goes with one message, which goes right after it." },
+  { id: "area.template", title: "Template", match: [m(".tpl")], area: true,
+    text: "A repeatable procedure. Each run makes a new thread; editing the steps or pins never changes runs already made, but library items are shared with them." },
+  { id: "area.sidebar", title: "Threads", match: [m(".sidebar")], area: true,
+    text: "Marks beside threads and folders show what needs you: something failed, a summary to review, or new results." },
+];

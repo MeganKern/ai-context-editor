@@ -1,0 +1,78 @@
+/* Alt-click help: its own styles (.help-…). It uses the app's colour tokens from app.css; nothing
+   in app.css depends on it. */
+
+/* While Alt is held (or the next click explains), everything shows the help cursor. */
+body.help-armed, body.help-armed * { cursor: help !important; }
+
+/* Help uses the focus blue — "what your next click or key applies to" — not mint, which means commit. */
+.help-outline {
+  position: fixed; z-index: 139; pointer-events: none; border-radius: 8px;
+  border: 1.5px dashed var(--focus); background: rgba(143, 208, 255, .1);
+  transition: top .08s, left .08s, width .08s, height .08s;
+}
+
+.help-card {
+  position: fixed; z-index: 141; width: min(340px, calc(100vw - 24px)); box-sizing: border-box;
+  padding: 12px 14px 12px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow); color: var(--text); font: 13px/1.5 var(--sans);
+  opacity: 0; transform: translateY(3px); transition: opacity .12s ease-out, transform .12s ease-out;
+}
+.help-card.is-ready { opacity: 1; transform: none; }
+.help-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+.help-card-title { flex: 1; font-weight: 600; font-size: 14px; }
+.help-x { background: none; border: 0; color: var(--text-3); font-size: 18px; line-height: 1; padding: 0 2px; cursor: pointer; }
+.help-x:hover { color: var(--text); }
+.help-text { margin: 0; color: var(--text-2); }
+
+/* The ? button, out of the way in the bottom-left corner, and what it opens. */
+.help-q {
+  position: fixed; left: 12px; bottom: 12px; z-index: 136; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; padding: 0; text-align: center; line-height: 1;
+  background: var(--raised-2); color: var(--text-2); border: 1px solid var(--edge-strong); font: 600 14px var(--sans);
+  cursor: pointer;
+}
+.help-q:hover, .help-q:focus-visible { background: var(--raised-3); color: var(--text); }
+/* The sidebar keeps a strip at its foot for it, so no thread ever sits under it. */
+.sidebar::after { content: ""; flex: none; height: 48px; }
+.sb-scroll { padding-bottom: 12px; }
+
+.help-hint, .help-once {
+  position: fixed; left: 48px; bottom: 12px; z-index: 136; display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px 6px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line-2);
+  box-shadow: var(--shadow); color: var(--text-2); font: 12.5px var(--sans); animation: help-in .2s ease-out;
+}
+.help-once { padding: 7px 12px; color: var(--focus); border-color: rgba(143, 208, 255, .55); }
+.help-ui kbd {
+  font: 11.5px var(--mono); padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line-2);
+  background: var(--bg); color: var(--text);
+}
+
+.help-panel {
+  position: fixed; left: 12px; bottom: 48px; z-index: 137; width: min(380px, calc(100vw - 24px));
+  max-height: min(520px, calc(100vh - 72px)); display: flex; flex-direction: column; gap: 10px; box-sizing: border-box;
+  padding: 14px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line-2); box-shadow: var(--shadow);
+  color: var(--text); font: 13px/1.5 var(--sans); animation: help-in .16s ease-out;
+}
+.help-panel-lede { margin: 0; color: var(--text-2); }
+.help-search {
+  padding: 7px 10px; border-radius: 8px; font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line-2);
+}
+.help-search:focus { outline: none; border-color: var(--focus); }
+.help-results { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; margin: 0 -6px; }
+.help-result {
+  display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px; text-align: left;
+  background: none; border: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.help-result:hover, .help-result:focus-visible { background: var(--row-hover); outline: none; }
+.help-result-title { font-weight: 600; font-size: 12.5px; }
+.help-result-text { font-size: 12px; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.help-none { margin: 4px 8px; color: var(--text-3); }
+.help-btn {
+  font: 12.5px var(--sans); padding: 5px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+  background: var(--raised-2); color: var(--text); border: 1px solid var(--line-2);
+}
+.help-btn:hover { background: var(--raised-3); border-color: var(--edge-strong); }
+.help-btn.is-primary { align-self: flex-start; font-weight: 500; }
+
+@keyframes help-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .help-ui { animation: none !important; transition: none !important; } }
