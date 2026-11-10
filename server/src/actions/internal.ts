@@ -6,6 +6,7 @@ import { endRun, RESTARTED_WHILE_RUNNING } from "../domain/run-ending.js";
 import { prepareRun, type StartingRun } from "../domain/prompts.js";
 import { waitReason } from "../domain/readiness.js";
 import { BOOT_ID } from "../runs/config.js";
+import { getHandler } from "../runs/handlers/index.js";
 
 /**
  * What the run manager reports, on the same queue as everything else. Text a run produced is
@@ -21,7 +22,7 @@ const tokens = z.number().int().nonnegative().optional();
 // decided and recorded now — prompt and manifest — and it starts.
 implementInternal("start_run", z.object({ run_id: runId }), async (args, tx, ctx) => {
   const { rows: [run] } = await tx.query<StartingRun & { status: string; cancel_requested_at: string | null }>(
-    `SELECT id, thread_id, kind, node_id, summary_id, input, model_id, status, cancel_requested_at
+    `SELECT id, kind, thread_id, workspace_id, node_id, summary_id, input, model_id, status, cancel_requested_at
      FROM runs WHERE id = $1 FOR UPDATE`, [args.run_id]);
   if (!run || run.status !== "queued") return { go: false };
   if (run.cancel_requested_at) {
@@ -92,16 +93,17 @@ implementInternal("fail_run", z.object({
 // replies, summaries and titles start again; a queued agent doesn't — it would act on your
 // computer while you may not be there to see it.
 implementInternal("interrupt_orphans", z.object({}), async (_args, tx, ctx) => {
-  const { rows: running } = await tx.query<{ id: string; node_id: string | null; process_gid: number | null; process_start_time: Date | null }>(
-    "SELECT id, node_id, process_gid, process_start_time FROM runs WHERE status = 'running' AND kind <> 'template' ORDER BY created_at");
+  const { rows: running } = await tx.query<{ id: string; kind: string; process_gid: number | null; process_start_time: Date | null }>(
+    "SELECT id, kind, process_gid, process_start_time FROM runs WHERE status = 'running' AND kind <> 'template' ORDER BY created_at");
   for (const run of running) {
     if (run.process_gid) killProcessGroup(run.process_gid, run.process_start_time);
     const { rows: [cp] } = await tx.query<{ text_so_far: string; raw: string[] }>(
       "SELECT text_so_far, raw FROM run_checkpoints WHERE run_id = $1", [run.id]);
+    const h = getHandler(run.kind);
     await endRun(tx, run.id, {
       status: "interrupted",
       error: RESTARTED_WHILE_RUNNING,
-      result_hash: cp?.text_so_far.trim() ? await putBlob(tx, cp.text_so_far, { searchable: run.node_id !== null }) : undefined,
+      result_hash: cp?.text_so_far.trim() ? await putBlob(tx, cp.text_so_far, { searchable: h.searchableResult }) : undefined,
       transcript_hash: cp?.raw.length ? await putBlob(tx, cp.raw.join("\n")) : undefined,
     }, ctx);
   }

@@ -14,17 +14,24 @@ const at = z.number().int().min(0).optional();
 export const actions = {
   // ── workspaces & folders ─────────────────────────────────────────────────
   create_workspace:   { input: z.object({ name: text }),                         output: z.object({ workspace_id: id }) },
-  create_folder:      { input: z.object({ workspace_id: id, name: text }),       output: z.object({ folder_id: id }) },
+  create_folder:      { input: z.object({ workspace_id: id, name: text, parent_id: id.nullable().default(null) }),
+                        output: z.object({ folder_id: id }) },
   rename_folder:      { input: z.object({ folder_id: id, name: text }),          output: ok },
+  move_folder:        { input: z.object({ folder_id: id, parent_id: id.nullable() }), output: ok },
   delete_folder:      { input: z.object({ folder_id: id }),                      output: ok },
   move_thread:        { input: z.object({ thread_id: id, folder_id: id.nullable() }), output: ok },
 
   // ── library ──────────────────────────────────────────────────────────────
   create_note:        { input: z.object({ workspace_id: id, name: text, content: z.string().default(""),
+                                          folder_id: id.nullable().default(null),
                                           load_into_thread_id: id.optional() }),
                         output: z.object({ note_id: id }) },
   update_note:        { input: z.object({ note_id: id, name: text.optional(), content: z.string().optional() }), output: ok },
+  move_note:          { input: z.object({ note_id: id, folder_id: id.nullable() }), output: ok },
+  link_note_version:  { input: z.object({ note_id: id, supersedes: id.nullable() }), output: ok },
   duplicate_note:     { input: z.object({ note_id: id }),                        output: z.object({ note_id: id }) },
+  combine_notes:      { input: z.object({ workspace_id: id, note_ids: z.array(id).min(2), name: z.string().optional(), instructions: z.string().optional() }),
+                        output: z.object({ note_id: id, run_id: id }) },
   delete_note:        { input: z.object({ note_id: id }),                        output: ok },
 
   // ── threads ──────────────────────────────────────────────────────────────
@@ -41,15 +48,22 @@ export const actions = {
 
   // ── messages ─────────────────────────────────────────────────────────────
   send_message:       { input: z.object({ thread_id: id, content: text, reply: z.boolean().default(false),
-                                          note_ids: z.array(id).default([]) }),
+                                          note_ids: z.array(id).default([]),
+                                          effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional() }),
                         output: z.object({ message_id: id, run_id: id.nullable() }) },
   insert_message:     { input: z.object({ thread_id: id, after_message_id: id.nullable(), content: text,
-                                          reply: z.boolean().default(false) }),
+                                          reply: z.boolean().default(false),
+                                          effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional() }),
                         output: z.object({ message_id: id, run_id: id.nullable() }) },
-  request_reply:      { input: z.object({ message_id: id }),                     output: z.object({ run_id: id }) },
-  edit_message:       { input: z.object({ message_id: id, content: text, then: z.enum(["reply"]).nullable().default(null) }),
+  request_reply:      { input: z.object({ message_id: id,
+                                          effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional() }),
+                        output: z.object({ run_id: id }) },
+  edit_message:       { input: z.object({ message_id: id, content: text, then: z.enum(["reply"]).nullable().default(null),
+                                          effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional() }),
                         output: z.object({ run_id: id.nullable() }) },
-  regenerate:         { input: z.object({ message_id: id }),                     output: z.object({ message_id: id, run_id: id }) },
+  regenerate:         { input: z.object({ message_id: id,
+                                          effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional() }),
+                        output: z.object({ message_id: id, run_id: id }) },
   delete_message:     { input: z.object({ message_id: id }),                     output: ok },
   set_message_flags:  { input: z.object({ message_id: id, excluded: z.boolean().optional(), folded: z.boolean().optional() }),
                         output: ok },
@@ -78,7 +92,8 @@ export const actions = {
 
   // ── summaries: drafting → review → active ⇄ inactive, or discarded ───────
   summarize:          { input: z.object({ cards: z.array(z.object({ message_id: id.optional(), summary_id: id.optional() })
-                          .refine(c => !!c.message_id !== !!c.summary_id, "Each card is a message or a summary")).min(1) }),
+                          .refine(c => !!c.message_id !== !!c.summary_id, "Each card is a message or a summary")).min(1),
+                          instructions: z.string().optional() }),
                         output: z.object({ summary_id: id, run_id: id }) },
   revise_summary:     { input: z.object({ summary_id: id, feedback: text.optional() }),
                         output: z.object({ summary_id: id, run_id: id }) },
@@ -96,6 +111,9 @@ export const actions = {
   reorder_steps:      { input: z.object({ thread_id: id, ordered_ids: z.array(id) }), output: ok },
   run_template:       { input: z.object({ thread_id: id, variables: z.record(z.string()) }),
                         output: z.object({ run_id: id, output_thread_id: id }) },
+
+  // ── system message ────────────────────────────────────────────────────────
+  set_system_message: { input: z.object({ text: z.string() }),               output: ok },
 
   // ── agent config ─────────────────────────────────────────────────────────
   set_agent_defaults: { input: z.object({ workspace_id: id,

@@ -49,19 +49,19 @@ export function ThreadHeader() {
   };
 
   const items: MenuItem[] = [
-    { label: "Rename", icon: "edit", onSelect: () => setRenaming(t.name) },
+    { label: "Rename", icon: "edit", hint: B.rename_thread.tip, onSelect: () => setRenaming(t.name) },
   ];
   if (!isTemplate && thread.messages.length > 0) {
     items.push({ label: naming ? "Naming…" : "Name it from the conversation", icon: "regenerate", disabled: naming,
-      onSelect: () => run("generate_title", { thread_id: t.id }) });
+      hint: B.generate_title.tip, onSelect: () => run("generate_title", { thread_id: t.id }) });
   }
   if (family.length > 1) {
     items.push({ label: "Branches…", hint: `This conversation and its ${family.length - 1} branch${family.length === 2 ? "" : "es"}`,
-      onSelect: () => setUi({ branchesOpen: true }) });
+      onSelect: () => setUi({ visit: { branchesOpen: true } }) });
   }
   if (!isTemplate && thread.messages.length > 0) {
     items.push({ label: "Summarize…", icon: "summary", hint: B.summarize.tip,
-      onSelect: () => setUi({ selection: { picked: [] } }) });
+      onSelect: () => setUi({ mode: { kind: "selection", picked: [] } }) });
   }
   const excludedCount = thread.messages.filter(m => m.excluded || m.context === "excluded").length;
   if (excludedCount > 0) {

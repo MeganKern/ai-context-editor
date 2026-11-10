@@ -77,9 +77,9 @@ implement("run_template", async (args, tx, ctx) => {
   const outputId = await copyThread(tx, ctx, thread.id, { kind: "template_run" }, { name: outputName });
   const runId = ctx.newId();
   await tx.query(
-    `INSERT INTO runs (id, thread_id, kind, status, started_at, output_thread_id, input, progress)
-     VALUES ($1, $2, 'template', 'running', now(), $3, $4, $5)`,
-    [runId, thread.id, outputId, JSON.stringify({ script, variables: values }), JSON.stringify({ step: 0, total: script.length })]);
+    `INSERT INTO runs (id, workspace_id, thread_id, kind, status, started_at, output_thread_id, input, progress)
+     VALUES ($1, $2, $3, 'template', 'running', now(), $4, $5, $6)`,
+    [runId, thread.workspace_id, thread.id, outputId, JSON.stringify({ script, variables: values }), JSON.stringify({ step: 0, total: script.length })]);
   await advance(tx, ctx, runId);
   return { run_id: runId, output_thread_id: outputId };
 });

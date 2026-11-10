@@ -9,15 +9,16 @@ import { putBlob } from "../db/blobs.js";
 type Card = { message_id: string | null; summary_id: string | null };
 const cardKey = (cards: Card[]) => cards.map(c => c.message_id ? `m:${c.message_id}` : `s:${c.summary_id}`).sort().join(",");
 
-async function startSummary(tx: Tx, ctx: Ctx, threadId: string, modelAlias: string | null, cards: Card[]): Promise<{ summary_id: string; run_id: string }> {
+async function startSummary(tx: Tx, ctx: Ctx, threadId: string, workspaceId: string, modelAlias: string | null, cards: Card[], instructions?: string): Promise<{ summary_id: string; run_id: string }> {
   const summaryId = ctx.newId();
-  await tx.query("INSERT INTO summaries (id, thread_id) VALUES ($1, $2)", [summaryId, threadId]);
+  const instrHash = instructions?.trim() ? await putBlob(tx, instructions.trim()) : null;
+  await tx.query("INSERT INTO summaries (id, thread_id, instructions_hash) VALUES ($1, $2, $3)", [summaryId, threadId, instrHash]);
   for (let i = 0; i < cards.length; i++) {
     await tx.query(
       "INSERT INTO summary_cards (id, thread_id, summary_id, position, message_id, card_summary_id) VALUES ($1, $2, $3, $4, $5, $6)",
       [ctx.newId(), threadId, summaryId, i, cards[i].message_id, cards[i].summary_id]);
   }
-  const { runId } = await insertRun(tx, ctx, { threadId, kind: "summarize", summaryId, modelAlias });
+  const { runId } = await insertRun(tx, ctx, { workspaceId, threadId, kind: "summarize", summaryId, modelAlias });
   return { summary_id: summaryId, run_id: runId };
 }
 
@@ -77,7 +78,7 @@ implement("summarize", async (args, tx, ctx) => {
   if (pendingWithSameCards(inputs.summaries, cards)) {
     throw new DomainError("conflict", "A summary of these cards is already being written or waiting for review");
   }
-  return startSummary(tx, ctx, thread.id, thread.model, cards);
+  return startSummary(tx, ctx, thread.id, thread.workspace_id, thread.model, cards, args.instructions);
 });
 
 // Under review: a fresh draft in its place, steered by your note if you gave one. In use or set
@@ -90,7 +91,7 @@ implement("revise_summary", async (args, tx, ctx) => {
 
   if (summary.status === "review") {
     await tx.query("UPDATE summaries SET status = 'drafting', feedback = $1 WHERE id = $2", [args.feedback ?? null, args.summary_id]);
-    const { runId } = await insertRun(tx, ctx, { threadId: thread.id, kind: "summarize", summaryId: args.summary_id, modelAlias: thread.model });
+    const { runId } = await insertRun(tx, ctx, { workspaceId: thread.workspace_id, threadId: thread.id, kind: "summarize", summaryId: args.summary_id, modelAlias: thread.model });
     return { summary_id: args.summary_id, run_id: runId };
   }
   if (summary.status !== "active" && summary.status !== "inactive") {
@@ -101,7 +102,7 @@ implement("revise_summary", async (args, tx, ctx) => {
   const cards = all.find(s => s.id === args.summary_id)?.cards ?? [];
   if (cards.length === 0) throw new DomainError("invalid", "This summary has no cards");
   if (pendingWithSameCards(all, cards, args.summary_id)) throw new DomainError("conflict", "A new summary of these cards is already being written or waiting for review");
-  return startSummary(tx, ctx, thread.id, thread.model, cards);
+  return startSummary(tx, ctx, thread.id, thread.workspace_id, thread.model, cards);
 });
 
 implement("edit_summary", async (args, tx) => {

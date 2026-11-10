@@ -5,13 +5,12 @@ import { endRun } from "../domain/run-ending.js";
 
 implement("dispatch_agent", async (args, tx, ctx) => {
   const thread = await requireThread(tx, args.thread_id, "chat");
-  const { rows: [ws] } = await tx.query<{ agent_preamble: string | null; agent_permission: string }>(
-    "SELECT agent_preamble, agent_permission FROM workspaces WHERE id = $1", [thread.workspace_id]);
-  const preamble = args.preamble ?? ws?.agent_preamble ?? undefined;
+  const { rows: [ws] } = await tx.query<{ agent_permission: string }>(
+    "SELECT agent_permission FROM workspaces WHERE id = $1", [thread.workspace_id]);
   const permission = args.permission ?? (ws?.agent_permission as string) ?? "locked";
   const { runId } = await insertRun(tx, ctx, {
-    threadId: thread.id, kind: "agent", key: await endKey(tx, thread.id), modelAlias: thread.model,
-    input: { task: args.task, preamble, permission, effort: args.effort },
+    workspaceId: thread.workspace_id, threadId: thread.id, kind: "agent", key: await endKey(tx, thread.id), modelAlias: thread.model,
+    input: { task: args.task, preamble_override: args.preamble || undefined, permission, effort: args.effort },
   });
   return { run_id: runId };
 });
@@ -29,14 +28,13 @@ implement("agent_follow_up", async (args, tx, ctx) => {
     "SELECT 1 FROM runs WHERE follows_run_id = $1 AND thread_id = $2 AND status IN ('queued', 'running')", [run.id, thread.id]);
   if (live) throw new DomainError("conflict", "A follow-up of this agent is already going");
 
-  const { rows: [ws] } = await tx.query<{ agent_preamble: string | null; agent_permission: string }>(
-    "SELECT agent_preamble, agent_permission FROM workspaces WHERE id = $1", [thread.workspace_id]);
-  const preamble = args.preamble ?? ws?.agent_preamble ?? undefined;
+  const { rows: [ws] } = await tx.query<{ agent_permission: string }>(
+    "SELECT agent_permission FROM workspaces WHERE id = $1", [thread.workspace_id]);
   const permission = args.permission ?? (ws?.agent_permission as string) ?? "locked";
 
   const { runId } = await insertRun(tx, ctx, {
-    threadId: thread.id, kind: "agent", key: await endKey(tx, thread.id), modelAlias: thread.model,
-    followsRunId: run.id, input: { task: args.message, resume_session: run.session_id, since_node_id: card.id, preamble, permission, effort: args.effort },
+    workspaceId: thread.workspace_id, threadId: thread.id, kind: "agent", key: await endKey(tx, thread.id), modelAlias: thread.model,
+    followsRunId: run.id, input: { task: args.message, resume_session: run.session_id, since_node_id: card.id, preamble_override: args.preamble || undefined, permission, effort: args.effort },
   });
   return { run_id: runId };
 });
@@ -69,9 +67,9 @@ implement("cancel_run", async (args, tx, ctx) => {
 });
 
 implement("mark_seen", async (args, tx, ctx) => {
-  const { rows } = await tx.query<{ thread_id: string }>(
+  const { rows } = await tx.query<{ thread_id: string | null }>(
     `INSERT INTO run_seen (run_id) SELECT id FROM runs WHERE id = ANY($1) AND ended_at IS NOT NULL
      ON CONFLICT DO NOTHING RETURNING (SELECT thread_id FROM runs WHERE id = run_id)`, [args.run_ids]);
-  for (const r of rows) ctx.touch(r.thread_id);
+  for (const r of rows) if (r.thread_id) ctx.touch(r.thread_id);
   return { ok: true as const };
 });

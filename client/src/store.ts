@@ -8,40 +8,33 @@ import type {
 } from "../../shared/snapshot.js";
 import { applyText, applyEvent, mergeSnapshotLive, type LiveBuf } from "./live-merge.js";
 
-export interface UiState {
+export type ActiveMode =
+  | { kind: "selection"; picked: string[] }
+  | { kind: "notePicker"; target: "load" }
+  | { kind: "notePicker"; target: "attach"; messageId: string }
+  | { kind: "insertAfter"; messageId: string }
+  | { kind: "inspector"; tab: "reply" | "agent" | "run"; runId: string | null };
+
+export interface ThreadVisit {
   focus: string | null;
-  /** Picking cards to summarize: message ids, and summary ids as "s:<id>". */
-  selection: { picked: string[] } | null;
-  noteEditor: string | "new" | null;
-  /** Agent mode can follow up on the agent behind a card (its id). */
-  composer: { mode: "message" | "agent"; continueMessageId: string | null };
-  inspector: { tab: "reply" | "agent" | "run"; runId: string | null } | null;
-  /** A notice, with one button when there's a next step to offer (open the copy, say). */
-  toast: { text: string; action: (() => void) | null; label?: string } | null;
-  /**
-   * The right-hand panel. Beside a thread it's the context — always in view on a wide screen;
-   * `chat` only opens it as a drawer when the screen is too narrow for three columns. For a
-   * template it's the run form (open by default, remembered per browser).
-   */
-  panel: { chat: boolean; template: boolean };
-  /** Where "New since you were here" goes in the thread just opened: before the first card
-   *  whose result you hadn't seen. */
   newSince: { threadId: string; messageId: string } | null;
-  /** Library picker: an item with every reply (templates), or with one message. */
-  notePicker: { mode: "load" } | { mode: "attach"; messageId: string } | null;
-  /** Messages to highlight in the conversation (e.g. while hovering a summary). */
-  highlight: { first: string; last: string } | null;
-  /** Message after which the "insert a message" form is open. */
-  insertAfter: string | null;
-  /** On narrow screens the sidebar is a drawer. */
-  sidebarOpen: boolean;
-  /** Swapping to another branch at a branch point: put that point back where it was on screen. */
   anchor: { key: string; top: number } | null;
-  /** The list of this conversation's branches (from the thread's ⋯ menu). */
+  highlight: { first: string; last: string } | null;
   branchesOpen: boolean;
-  /** When true, excluded messages are completely hidden from the conversation. */
+}
+
+export interface UiState {
+  mode: ActiveMode | null;
+  visit: ThreadVisit;
+  noteEditor: string | "new" | null;
+  composer: { mode: "message" | "agent"; continueMessageId: string | null };
+  toast: { text: string; action: (() => void) | null; label?: string } | null;
+  panel: { chat: boolean; template: boolean };
+  sidebarOpen: boolean;
   hideExcluded: boolean;
 }
+
+export type UiPatch = Omit<Partial<UiState>, "visit"> & { visit?: Partial<ThreadVisit> };
 
 function readTemplatePanelPref(): boolean {
   try {
@@ -79,7 +72,7 @@ export interface Store {
   openWorkspace(id: string): Promise<void>;
   openThread(id: string | null, opts?: { focus?: string; anchor?: { key: string; top: number } }): Promise<void>;
   run<N extends ActionName>(name: N, input: ActionInput<N>): Promise<ActionOutput<N> | null>;
-  setUi(patch: Partial<UiState>): void;
+  setUi(patch: UiPatch): void;
   togglePanel(open?: boolean): void;
   setNextNotes(threadId: string, noteIds: string[]): void;
   toast(text: string, action?: () => void, label?: string): void;
@@ -127,14 +120,13 @@ export const useStore = create<Store>((set, get) => {
     },
     onThread(snap: ThreadSnapshot) {
       const prev = get().thread;
-      let newSince = get().ui.newSince;
+      let newSince = get().ui.visit.newSince;
       if (!prev || prev.thread.id !== snap.thread.id) {
-        // Decided once per visit, before what's on screen counts as seen.
         const unseen = new Set(snap.unseen_run_ids);
         const firstNew = snap.messages.find(m => m.run && unseen.has(m.run.id));
         newSince = firstNew ? { threadId: snap.thread.id, messageId: firstNew.id } : null;
       }
-      set((s) => ({ thread: snap, live: mergeSnapshotLive(s.live, snap), ui: { ...s.ui, newSince } }));
+      set((s) => ({ thread: snap, live: mergeSnapshotLive(s.live, snap), ui: { ...s.ui, visit: { ...s.ui.visit, newSince } } }));
       reportSeen();
     },
     onThreadGone() {
@@ -195,20 +187,13 @@ export const useStore = create<Store>((set, get) => {
     error: null,
     nextNotes: {},
     ui: {
-      focus: null,
-      selection: null,
+      mode: null,
+      visit: { focus: null, newSince: null, anchor: null, highlight: null, branchesOpen: false },
       noteEditor: null,
       composer: { mode: "message", continueMessageId: null },
-      inspector: null,
       toast: null,
       panel: { chat: false, template: readTemplatePanelPref() },
-      newSince: null,
-      notePicker: null,
-      highlight: null,
-      insertAfter: null,
       sidebarOpen: false,
-      anchor: null,
-      branchesOpen: false,
       hideExcluded: readHideExcludedPref(),
     },
 
@@ -240,9 +225,11 @@ export const useStore = create<Store>((set, get) => {
         thread: null,
         live: {},
         ui: {
-          ...s.ui, focus: opts?.focus ?? null, composer: { mode: "message", continueMessageId: null }, inspector: null,
-          selection: null, notePicker: null, highlight: null, insertAfter: null, sidebarOpen: false, newSince: null,
-          anchor: opts?.anchor ?? null, branchesOpen: false,
+          ...s.ui,
+          mode: null,
+          visit: { focus: opts?.focus ?? null, newSince: null, anchor: opts?.anchor ?? null, highlight: null, branchesOpen: false },
+          composer: { mode: "message", continueMessageId: null },
+          sidebarOpen: false,
         },
       }));
       if (id) {
@@ -271,8 +258,14 @@ export const useStore = create<Store>((set, get) => {
       }
     },
 
-    setUi(patch: Partial<UiState>) {
-      set((s) => ({ ui: { ...s.ui, ...patch } }));
+    setUi(patch: UiPatch) {
+      set((s) => ({
+        ui: {
+          ...s.ui,
+          ...patch,
+          visit: patch.visit ? { ...s.ui.visit, ...patch.visit } : s.ui.visit,
+        },
+      }));
     },
 
     togglePanel(open?: boolean) {

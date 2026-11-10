@@ -321,7 +321,7 @@ export function Sidebar() {
                           <span className="row-mark is-new" title="Something in here finished since you last looked" aria-label="new result inside" />}
                       </button>
                       <Menu label={`Folder ${f.name}`} className="icon-btn row-menu" items={[
-                        { label: "Rename folder", icon: "edit", onSelect: () => setRenaming({ id: f.id, name: f.name }) },
+                        { label: "Rename folder", icon: "edit", hint: B.rename_folder.tip, onSelect: () => setRenaming({ id: f.id, name: f.name }) },
                         { label: "Remove folder", icon: "close", hint: B.delete_folder.tip,
                           onSelect: () => run("delete_folder", { folder_id: f.id }) },
                       ]} />

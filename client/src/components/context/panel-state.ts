@@ -8,7 +8,7 @@ import type { MessageItem, ThreadItem } from "../../../../shared/snapshot.js";
  *  conversation, so it steps aside. */
 export function showMessage(id: string) {
   const st = useStore.getState();
-  st.setUi({ focus: id });
+  st.setUi({ visit: { focus: id } });
   if (typeof window !== "undefined" && window.innerWidth <= 1180) st.togglePanel(false);
 }
 

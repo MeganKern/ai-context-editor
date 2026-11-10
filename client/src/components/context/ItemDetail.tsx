@@ -75,7 +75,7 @@ export function ItemDetail({ thread, noteId, kind }: { thread: ThreadSnapshot | 
         {draft === null ? (
           <>
             <button className="act" onClick={() => setDraft(text ?? "")} disabled={text === null}><Icon name="edit" /> Edit</button>
-            <button className="act" onClick={() => setUi({ noteEditor: noteId })} title="A bigger editor, with rename and delete"><Icon name="external" /> Editor</button>
+            <button className="act" onClick={() => setUi({ noteEditor: noteId })} title="A bigger editor, with rename and delete"><Icon name="external" /> Full editor</button>
             {kind === "with_message" && thread && (
               <button className="act" onClick={() => void toEveryReply()}
                 title="Send it with every reply instead of with its message"><Icon name="plus" /> Every reply</button>
@@ -111,10 +111,10 @@ function GoesWith({ thread, noteId }: { thread: ThreadSnapshot; noteId: string }
   const message = item?.message_id ? thread.messages.find(m => m.id === item.message_id) : undefined;
   const mid = message?.id ?? null;
   // Pointing at the line marks its message in the conversation; leaving (or the line going) clears it.
-  const unmark = () => { if (mid && useStore.getState().ui.highlight?.first === mid) setUi({ highlight: null }); };
+  const unmark = () => { if (mid && useStore.getState().ui.visit.highlight?.first === mid) setUi({ visit: { highlight: null } }); };
   useEffect(() => () => {
     const st = useStore.getState();
-    if (mid && st.ui.highlight?.first === mid) st.setUi({ highlight: null });
+    if (mid && st.ui.visit.highlight?.first === mid) st.setUi({ visit: { highlight: null } });
   }, [mid]);
   if (!item || !message) return null;
   const why = notSentBecause(item, message);
@@ -123,7 +123,7 @@ function GoesWith({ thread, noteId }: { thread: ThreadSnapshot; noteId: string }
       <p className="ctxp-goes-head">Goes with</p>
       <ul>
         <li className={`ctxp-goes-line ${item.sent ? "" : "is-notsent"}`}
-          onMouseEnter={() => setUi({ highlight: { first: message.id, last: message.id } })} onMouseLeave={unmark}>
+          onMouseEnter={() => setUi({ visit: { highlight: { first: message.id, last: message.id } } })} onMouseLeave={unmark}>
           <button className="ctxp-goes-msg" onClick={() => showMessage(message.id)} title="Show the message">
             <span>“{clip(message.content, 70) || "(no text yet)"}”</span>
             {why && <span className="ctxp-goes-why">Not sent: {why}</span>}

@@ -8,7 +8,7 @@ import { extractVariables } from "../domain/template-vars.js";
 import { readTranscript } from "../runs/claude-cli.js";
 import { getRunManager } from "../runs/manager.js";
 import { MODELS, resolveModel, MAX_OUTPUT_TOKENS, AGENT_SWITCHED_OFF, AGENT_EXTRAS } from "../runs/config.js";
-import { DEFAULT_AGENT_PREAMBLE } from "../../../shared/agent.js";
+
 import type {
   WorkspaceSnapshot, ThreadSnapshot, MessageItem, CardRun, RunView, AttentionItem, SummaryView, TemplateOrigin,
   WorkspaceListItem, NoteDetail, SearchHit, SearchPlace, NoteSearchHit, PromptPreview, RunStatus, CardStatus, CutOff, ThreadItem,
@@ -65,12 +65,14 @@ const RUN_NUMBER = `(SELECT count(*)::int FROM runs x WHERE x.thread_id = r.thre
                      AND (x.created_at, x.id) <= (r.created_at, r.id))`;
 
 export async function workspaceSnapshot(db: Db, wsId: string): Promise<WorkspaceSnapshot | null> {
-  const { rows: [ws] } = await db.query<{ id: string; name: string; path: string; agent_preamble: string | null; agent_permission: string }>(
-    "SELECT id, name, path, agent_preamble, agent_permission FROM workspaces WHERE id = $1", [wsId]);
+  const { rows: [ws] } = await db.query<{ id: string; name: string; path: string; agent_permission: string; preamble_text: Buffer | null }>(
+    `SELECT w.id, w.name, w.path, w.agent_permission, b.content AS preamble_text
+     FROM workspaces w LEFT JOIN agent_preamble ap ON ap.id = w.id LEFT JOIN blobs b ON b.hash = ap.text_hash
+     WHERE w.id = $1`, [wsId]);
   if (!ws) return null;
 
-  const { rows: folders } = await db.query<{ id: string; name: string }>(
-    "SELECT id, name FROM folders WHERE workspace_id = $1 ORDER BY name", [wsId]);
+  const { rows: folders } = await db.query<{ id: string; name: string; parent_id: string | null }>(
+    "SELECT id, name, parent_id FROM folders WHERE workspace_id = $1 ORDER BY name", [wsId]);
   const places = await placesIn(db, wsId);
 
   const { rows: threads } = await db.query<{
@@ -121,8 +123,8 @@ export async function workspaceSnapshot(db: Db, wsId: string): Promise<Workspace
     flags.set(listed, f);
   }
 
-  const { rows: notes } = await db.query<{ id: string; name: string; tokens: number; used_in: number; content_hash: string; copied_from: string | null }>(
-    `SELECT n.id, n.name, b.tokens, n.content_hash, n.copied_from,
+  const { rows: notes } = await db.query<{ id: string; name: string; tokens: number; used_in: number; content_hash: string; copied_from: string | null; folder_id: string | null; supersedes: string | null }>(
+    `SELECT n.id, n.name, b.tokens, n.content_hash, n.copied_from, n.folder_id, n.supersedes,
             (SELECT count(DISTINCT u.thread_id)::int FROM thread_items u
                JOIN threads t ON t.id = u.thread_id AND t.deleted_at IS NULL WHERE u.note_id = n.id) AS used_in
      FROM notes n JOIN blobs b ON b.hash = n.content_hash
@@ -131,7 +133,7 @@ export async function workspaceSnapshot(db: Db, wsId: string): Promise<Workspace
   return {
     seq: await currentSeq(db),
     workspace: { id: ws.id, name: ws.name, path: ws.path },
-    agent_defaults: { preamble: ws.agent_preamble ?? "", permission: (ws.agent_permission as "locked" | "standard" | "full") },
+    agent_defaults: { preamble: ws.preamble_text?.toString("utf-8") ?? "", permission: (ws.agent_permission as "locked" | "standard" | "full") },
     folders,
     threads: threads.filter(t => places.has(t.id)).map(t => ({
       id: t.id, name: t.name, kind: t.kind, created_at: iso(t.created_at)!, place: places.get(t.id)!,
@@ -471,14 +473,13 @@ export async function promptPreview(db: Db, threadId: string, purpose: "reply" |
   const model_id = resolveModel(thread.model).id;
 
   if (purpose === "agent") {
-    const plan = planContext(inputs, "preview", { live });
-    let agentPreamble = preamble;
-    if (agentPreamble === undefined) {
-      const { rows: [ws] } = await db.query<{ agent_preamble: string | null }>(
-        "SELECT agent_preamble FROM workspaces WHERE id = $1", [thread.workspace_id]);
-      agentPreamble = ws?.agent_preamble || DEFAULT_AGENT_PREAMBLE;
+    // Per-preview preamble override (unsaved textarea content from the client).
+    if (preamble !== undefined) {
+      const trimmed = preamble.trim();
+      inputs.agentPreamble = trimmed ? { text: trimmed, text_hash: "" } : null;
     }
-    const doc = renderAgentPrompt(plan, task?.trim() || "(your task will go here)", agentPreamble || undefined);
+    const plan = planContext(inputs, "preview", { live });
+    const doc = renderAgentPrompt(plan, task?.trim() || "(your task will go here)");
     const { rows: [last] } = await db.query<{ tool_version: string | null }>(
       `SELECT r.tool_version FROM runs r JOIN threads t ON t.id = r.thread_id
        WHERE t.workspace_id = $1 AND r.kind = 'agent' AND r.tool_version IS NOT NULL ORDER BY r.started_at DESC LIMIT 1`, [thread.workspace_id]);

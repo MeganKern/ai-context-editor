@@ -22,8 +22,9 @@ implement("send_message", async (args, tx, ctx) => {
       "SELECT placement FROM thread_items WHERE thread_id = $1 AND note_id = $2", [thread.id, noteId]);
     if (placed?.placement !== "every_reply") await placeItem(tx, ctx, thread.id, noteId, { placement: "with_message", message_id: messageId });
   }
+  const effortInput = args.effort ? { effort: args.effort } : {};
   const runId = args.reply
-    ? (await insertRun(tx, ctx, { threadId: thread.id, kind: "reply", key: await endKey(tx, thread.id), modelAlias: thread.model })).runId
+    ? (await insertRun(tx, ctx, { workspaceId: thread.workspace_id, threadId: thread.id, kind: "reply", key: await endKey(tx, thread.id), modelAlias: thread.model, input: effortInput })).runId
     : null;
   return { message_id: messageId, run_id: runId };
 });
@@ -33,27 +34,29 @@ implement("insert_message", async (args, tx, ctx) => {
   const messageId = await newUserCard(tx, ctx, {
     threadId: thread.id, key: await keyAfter(tx, thread.id, args.after_message_id), text: args.content, authorKind: "you",
   });
+  const effortInput = args.effort ? { effort: args.effort } : {};
   const runId = args.reply
     ? (await insertRun(tx, ctx, {
-        threadId: thread.id, kind: "reply", key: await keyAfter(tx, thread.id, messageId), modelAlias: thread.model,
+        workspaceId: thread.workspace_id, threadId: thread.id, kind: "reply", key: await keyAfter(tx, thread.id, messageId), modelAlias: thread.model, input: effortInput,
       })).runId
     : null;
   return { message_id: messageId, run_id: runId };
 });
 
 /** A new reply right after this card, written from everything above it. */
-async function replyAfter(tx: Tx, ctx: Ctx, card: CardRow): Promise<string> {
+async function replyAfter(tx: Tx, ctx: Ctx, card: CardRow, effort?: string): Promise<string> {
   if (card.role === "assistant") throw new DomainError("invalid", "A reply can't be answered by another reply");
   if (card.live_run_id && !card.current_revision_id) throw new DomainError("conflict", "Wait until it's written");
   const thread = await requireThread(tx, card.thread_id, "chat");
+  const input = effort ? { effort } : {};
   const { runId } = await insertRun(tx, ctx, {
-    threadId: thread.id, kind: "reply", key: await keyAfter(tx, thread.id, card.id), modelAlias: thread.model,
+    workspaceId: thread.workspace_id, threadId: thread.id, kind: "reply", key: await keyAfter(tx, thread.id, card.id), modelAlias: thread.model, input,
   });
   return runId;
 }
 
 implement("request_reply", async (args, tx, ctx) => {
-  return { run_id: await replyAfter(tx, ctx, await requireCard(tx, args.message_id)) };
+  return { run_id: await replyAfter(tx, ctx, await requireCard(tx, args.message_id), args.effort) };
 });
 
 /** The card in `threadId` that is `cardId` or a copy of it (a branch's copy, or a copy of that). */
@@ -73,12 +76,13 @@ async function cardInThread(tx: Tx, threadId: string, cardId: string): Promise<s
  * An agent's card runs the same task again, a follow-up continuing the same session it did (in a
  * fresh fork of it, so the earlier attempt isn't in the agent's memory).
  */
-async function writeAgain(tx: Tx, ctx: Ctx, card: CardRow): Promise<string> {
+async function writeAgain(tx: Tx, ctx: Ctx, card: CardRow, effort?: string): Promise<string> {
   if (card.role === "user") throw new DomainError("invalid", "Your own messages aren't written by a model");
   if (card.live_run_id) throw new DomainError("conflict", "It's still being written");
   const thread = await requireThread(tx, card.thread_id, "chat");
   const kind = card.role === "agent" ? "agent" : "reply";
   const input: Record<string, unknown> = {};
+  if (kind === "reply" && effort) input.effort = effort;
   let followsRunId: string | null = null;
   if (kind === "agent") {
     const prev = await agentRunOf(tx, card.id);
@@ -93,12 +97,12 @@ async function writeAgain(tx: Tx, ctx: Ctx, card: CardRow): Promise<string> {
       if (since) input.since_node_id = since;
     }
   }
-  return rerunInPlace(tx, ctx, { threadId: thread.id, cardId: card.id, kind, modelAlias: thread.model, input, followsRunId });
+  return rerunInPlace(tx, ctx, { workspaceId: thread.workspace_id, threadId: thread.id, cardId: card.id, kind, modelAlias: thread.model, input, followsRunId });
 }
 
 implement("regenerate", async (args, tx, ctx) => {
   const card = await requireCard(tx, args.message_id);
-  return { message_id: card.id, run_id: await writeAgain(tx, ctx, card) };
+  return { message_id: card.id, run_id: await writeAgain(tx, ctx, card, args.effort) };
 });
 
 // Your edit is a new text of the card's. With then = "reply" (your messages): the reply right
@@ -111,7 +115,7 @@ implement("edit_message", async (args, tx, ctx) => {
   if (card.role !== "user") throw new DomainError("invalid", "Only your own messages get a new reply when saved");
   const next = await nextCard(tx, card);
   if (next?.role === "assistant") return { run_id: await writeAgain(tx, ctx, await requireCard(tx, next.id)) };
-  return { run_id: await replyAfter(tx, ctx, { ...card, current_revision_id: "edited", live_run_id: null }) };
+  return { run_id: await replyAfter(tx, ctx, { ...card, current_revision_id: "edited", live_run_id: null }, args.effort) };
 });
 
 // The card goes from the thread (its texts stay in the record), and so do library items that went

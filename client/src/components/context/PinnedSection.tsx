@@ -62,7 +62,7 @@ export function PinnedSection({ thread }: { thread: ThreadSnapshot }) {
       </SectionHead>
       {pins.length === 0 && adding === null && (
         <p className="ctxp-empty">
-          {isTemplate ? "Nothing pinned. What's pinned here is copied into every run." : "Decisions and facts you don't want lost in the thread. Pin them from a message, or write one here."}
+          {isTemplate ? "Nothing pinned. What's pinned here is copied into every run." : "Pin facts from a message, or write one here."}
         </p>
       )}
       <ul className="ctxp-list" {...drop.zone}>
@@ -106,7 +106,7 @@ function PinRow({ thread, pin, first, last, editing, setEditing, dropLine, dragO
   const [sent, toggle] = useSwitch(!pin.excluded, on => run("set_excluded", { target: "directive", directive_id: pin.id, excluded: !on }));
 
   const items: MenuItem[] = [
-    { label: "Edit", icon: "edit", onSelect: startEdit },
+    { label: "Edit", icon: "edit", hint: B.update_directive.tip, onSelect: startEdit },
     ...(move ? [
       { label: "Move up", icon: "arrowUp" as const, hint: "Alt ↑ · or drag it", disabled: first, onSelect: () => move(-1) },
       { label: "Move down", icon: "arrowDown" as const, hint: "Alt ↓", disabled: last, onSelect: () => move(1) },

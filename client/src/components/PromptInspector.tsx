@@ -18,7 +18,7 @@ type Tab = "reply" | "agent" | "run";
  * or agent would get. Beside it, what's sent now, with the switches.
  */
 export function PromptInspector() {
-  const inspector = useStore(s => s.ui.inspector);
+  const inspector = useStore(s => s.ui.mode?.kind === "inspector" ? s.ui.mode : null);
   const setUi = useStore(s => s.setUi);
   const thread = useStore(s => s.thread);
   const [data, setData] = useState<PromptPreview | null>(null);
@@ -59,7 +59,7 @@ export function PromptInspector() {
   }, [inspector, tab, runId, load, seq, applied]);
 
   if (!inspector || !thread) return null;
-  const close = () => setUi({ inspector: null });
+  const close = () => setUi({ mode: null });
   const preview = data;
 
   // Before its prompt has loaded, a run of a card here is known by its card.
@@ -86,12 +86,12 @@ export function PromptInspector() {
         <div className="tabs" role="tablist">
           {runId && (
             <button role="tab" aria-selected={tab === "run"} className={`tab ${tab === "run" ? "is-on" : ""}`}
-              onClick={() => setUi({ inspector: { tab: "run", runId } })}>{runIsAgent ? "This agent's brief" : "This reply"}</button>
+              onClick={() => setUi({ mode: { kind: "inspector", tab: "run", runId } })}>{runIsAgent ? "This agent's brief" : "This reply"}</button>
           )}
           <button role="tab" aria-selected={tab === "reply"} className={`tab ${tab === "reply" ? "is-on" : ""}`}
-            onClick={() => setUi({ inspector: { tab: "reply", runId } })}>Next reply</button>
+            onClick={() => setUi({ mode: { kind: "inspector", tab: "reply", runId } })}>Next reply</button>
           <button role="tab" aria-selected={tab === "agent"} className={`tab ${tab === "agent" ? "is-on" : ""}`}
-            onClick={() => setUi({ inspector: { tab: "agent", runId } })}>Next agent</button>
+            onClick={() => setUi({ mode: { kind: "inspector", tab: "agent", runId } })}>Next agent</button>
           <span className="spacer" />
           <button className={`tab tab-toggle ${sourcesOpen ? "is-on" : ""}`} onClick={() => setSourcesOpen(o => !o)} aria-expanded={sourcesOpen}>
             <Icon name="panel" /> What's sent now
@@ -173,7 +173,7 @@ function SentNow({ thread }: { thread: ThreadSnapshot }) {
   const run = useStore(s => s.run);
   const setUi = useStore(s => s.setUi);
   // Editing happens on the message itself: close this and take you there.
-  const goTo = (id: string) => setUi({ inspector: null, focus: id });
+  const goTo = (id: string) => setUi({ mode: null, visit: { focus: id } });
   const groups = groupMessages(thread.messages, thread.summaries);
 
   return (

@@ -65,6 +65,13 @@ export function saveDraft(threadId: string, draft: { message: string; task: stri
   }).then(() => undefined, () => undefined);
 }
 
+export async function getSystemMessage(): Promise<string> {
+  const res = await fetch("/api/system-message");
+  if (!res.ok) return "";
+  const data = await res.json();
+  return data.text ?? "";
+}
+
 export async function getSettings(): Promise<Record<string, string>> {
   const res = await fetch("/api/settings");
   if (!res.ok) return {};

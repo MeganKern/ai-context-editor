@@ -95,7 +95,7 @@ implement("generate_title", async (args, tx, ctx) => {
     "SELECT 1 FROM runs WHERE thread_id = $1 AND kind = 'title' AND status IN ('queued', 'running')", [thread.id]);
   if (running) throw new DomainError("conflict", "It's already being named");
   const { runId } = await insertRun(tx, ctx, {
-    threadId: thread.id, kind: "title", modelAlias: thread.model, input: { name_at_start: thread.name },
+    workspaceId: thread.workspace_id, threadId: thread.id, kind: "title", modelAlias: thread.model, input: { name_at_start: thread.name },
   });
   return { run_id: runId };
 });

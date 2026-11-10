@@ -64,7 +64,7 @@ export function InThreadSection({ thread }: { thread: ThreadSnapshot }) {
       {thread.items.length === 0 && !incoming && (
         <p className="ctxp-empty">
           {isTemplate ? "Nothing from the library. What you add here is used by every run: the same item, not a copy."
-            : "Nothing from the library yet. Add an item from below, or drag one here — or onto a single message."}
+            : "Add a library item from below, or drag one here."}
         </p>
       )}
       <ul className="ctxp-list">
@@ -78,7 +78,7 @@ export function InThreadSection({ thread }: { thread: ThreadSnapshot }) {
       </ul>
       {hint && <p className={`ctxp-drop-hint ${items.length === 0 ? "is-alone" : ""}`}>{hint}</p>}
       {isTemplate && (
-        <button className="act ctxp-more-btn" onClick={() => setUi({ notePicker: { mode: "load" } })}>
+        <button className="act ctxp-more-btn" onClick={() => setUi({ mode: { kind: "notePicker", target: "load" } })}>
           <Icon name="plus" /> Add from the library…
         </button>
       )}
@@ -87,13 +87,13 @@ export function InThreadSection({ thread }: { thread: ThreadSnapshot }) {
 }
 
 /** What every item row here offers besides where it goes. */
-function commonActions(item: ThreadItem, open: boolean, setRenaming: (on: boolean) => void): MenuItem[] {
+function commonActions(item: ThreadItem, _open: boolean, setRenaming: (on: boolean) => void): MenuItem[] {
   const setUi = useStore.getState().setUi;
   return [
-    { label: open ? "Close" : "Read it here", icon: open ? "collapse" : "expand", onSelect: () => setOpen(item.note_id, !open) },
-    { label: "Edit the text", icon: "edit", onSelect: () => { setOpen(item.note_id, true); usePanel.setState({ editing: item.note_id }); } },
-    { label: "Rename", icon: "edit", onSelect: () => setRenaming(true) },
-    { label: "Open in the editor", icon: "external", onSelect: () => setUi({ noteEditor: item.note_id }) },
+    { label: "Edit the text", icon: "edit", hint: B.update_note.tip, onSelect: () => { setOpen(item.note_id, true); usePanel.setState({ editing: item.note_id }); } },
+    { label: "Full editor", icon: "external", hint: "More space, richer editing — same shared text", onSelect: () => setUi({ noteEditor: item.note_id }) },
+    { separator: true },
+    { label: "Rename", icon: "edit", hint: B["update_note:name"].tip, onSelect: () => setRenaming(true) },
   ];
 }
 
@@ -121,6 +121,21 @@ function UnsavedTag({ id, open }: { id: string; open: boolean }) {
   return unsaved && !open
     ? <span className="ctxp-tag is-unsaved" title="You started editing its text; open it to save or discard">unsaved edit</span>
     : null;
+}
+
+function NewerVersionTag({ noteId, thread }: { noteId: string; thread: ThreadSnapshot }) {
+  const newer = useStore(s => s.ws?.notes.find(n => n.supersedes === noteId && !s.ws?.notes.some(x => x.supersedes === n.id)));
+  const run = useStore(s => s.run);
+  if (!newer) return null;
+  const swap = async () => {
+    await run("remove_item", { thread_id: thread.thread.id, note_id: noteId });
+    await run("place_item", { thread_id: thread.thread.id, note_id: newer.id, place: { placement: "every_reply" } });
+  };
+  return (
+    <button className="ctxp-tag is-update" title={`"${newer.name}" is a newer version — click to switch`} onClick={e => { e.stopPropagation(); void swap(); }}>
+      ↑ update
+    </button>
+  );
 }
 
 function EveryReplyRow({ thread, item, first, last, dropLine, dragOver, move }: {
@@ -159,6 +174,7 @@ function EveryReplyRow({ thread, item, first, last, dropLine, dragOver, move }: 
             <Icon name="note" /><span className="ctxp-name">{item.name}</span>
             <CopyTag item={item} />
             <UnsavedTag id={item.note_id} open={open} />
+            <NewerVersionTag noteId={item.note_id} thread={thread} />
             <Icon name={open ? "chevronDown" : "chevronRight"} className="ctxp-caret" />
           </button>
         )}
@@ -214,6 +230,7 @@ function WithMessageRow({ thread, item }: { thread: ThreadSnapshot; item: Thread
             <span className="ctxp-tag">with one message</span>
             <CopyTag item={item} />
             <UnsavedTag id={item.note_id} open={open} />
+            <NewerVersionTag noteId={item.note_id} thread={thread} />
             <Icon name={open ? "chevronDown" : "chevronRight"} className="ctxp-caret" />
           </button>
         )}

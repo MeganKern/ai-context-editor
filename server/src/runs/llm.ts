@@ -69,12 +69,14 @@ async function open(body: unknown, signal: AbortSignal): Promise<Response> {
 /** Yields the text as it comes; returns how it ended. A failure partway is not retried. */
 export async function* stream(
   messages: { role: string; content: string }[],
-  opts: { model: string; maxTokens?: number; signal: AbortSignal; onActivity?: () => void },
+  opts: { model: string; maxTokens?: number; effort?: string; signal: AbortSignal; onActivity?: () => void },
 ): AsyncGenerator<string, StreamEnd> {
-  const res = await open({
+  const body: Record<string, unknown> = {
     model: opts.model, messages, max_tokens: opts.maxTokens ?? MAX_OUTPUT_TOKENS,
     stream: true, stream_options: { include_usage: true },
-  }, opts.signal);
+  };
+  if (opts.effort) body.reasoning_effort = opts.effort;
+  const res = await open(body, opts.signal);
 
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();

@@ -13,6 +13,7 @@ import { authorLabel, clip, fullTime, timeLabel } from "../format.js";
 import { NOTE_TYPE, draggedItem, endDrag } from "../drag.js";
 import { removeFromThread, setItemSwitch, toMessage } from "../context-ops.js";
 import { BEHAVIOUR as B } from "../../../shared/behaviour.js";
+import { RichEditor } from "./RichEditor.js";
 
 /** Why a card is waiting, as the server says it; a full slot frees when one of those finishes. */
 function queueTitle(detail: string | undefined, reason: string | undefined): string {
@@ -93,7 +94,7 @@ export function Message({ mv, isLatest, next, showTime, expanded, setExpanded, i
   const toggleExcluded = () => run("set_message_flags", { message_id: item.id, excluded: !item.excluded });
   const fold = () => run("set_message_flags", { message_id: item.id, folded: true });
   const regenerate = () => run("regenerate", { message_id: item.id });
-  const openPrompt = () => msgRun && setUi({ inspector: { tab: "run", runId: msgRun.id } });
+  const openPrompt = () => msgRun && setUi({ mode: { kind: "inspector", tab: "run", runId: msgRun.id } });
   const openPin = () => setPinText(item.content);
 
   const canToggleContext = !isEmpty && item.context !== "summarized" && can.canExclude;
@@ -198,10 +199,10 @@ export function Message({ mv, isLatest, next, showTime, expanded, setExpanded, i
 
   // ── Rarer verbs ──────────────────────────────────────────────────────────
   const more: MenuItem[] = [];
-  more.push({ label: "Send a library item with it…", icon: "paperclip", hint: B["place_item:with_message"].tip, onSelect: () => setUi({ notePicker: { mode: "attach", messageId: item.id } }) });
-  if (next) more.push({ label: "Insert a message below…", icon: "insert", onSelect: () => setUi({ insertAfter: item.id }) });
+  more.push({ label: "Send a library item with it…", icon: "paperclip", hint: B["place_item:with_message"].tip, onSelect: () => setUi({ mode: { kind: "notePicker", target: "attach", messageId: item.id } }) });
+  if (next) more.push({ label: "Insert a message below…", icon: "insert", hint: B.insert_message.tip, onSelect: () => setUi({ mode: { kind: "insertAfter", messageId: item.id } }) });
   more.push({ label: "Branch from here", hint: B.branch_thread.tip, onSelect: branch });
-  if (!isWriting && item.context !== "summarized" && !isEmpty) more.push({ label: "Summarize…", icon: "summary", hint: "Then pick the other cards to include", onSelect: () => setUi({ selection: { picked: [item.id] } }) });
+  if (!isWriting && item.context !== "summarized" && !isEmpty) more.push({ label: "Summarize…", icon: "summary", hint: "Then pick the other cards to include", onSelect: () => setUi({ mode: { kind: "selection", picked: [item.id] } }) });
   if (can.canDelete) {
     more.push({ separator: true });
     more.push({ label: "Delete message", icon: "trash", danger: true, hint: B.delete_message.tip, onSelect: del });
@@ -358,13 +359,10 @@ export function Message({ mv, isLatest, next, showTime, expanded, setExpanded, i
           <WritingBody item={item} liveText={liveText} liveSteps={liveSteps} />
         ) : editText !== null ? (
           <div className="msg-edit" ref={formRef}>
-            <textarea
-              autoFocus
-              aria-label="Edit message"
-              rows={Math.min(14, Math.max(3, editText.split("\n").length + 1))}
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              onKeyDown={e => { if (e.key === "Escape") setEditText(null); }}
+            <RichEditor
+              content={editText}
+              onChange={setEditText}
+              onCancel={() => setEditText(null)}
             />
             <div className="msg-edit-actions">
               <button className="btn btn-primary btn-sm" onClick={() => save(false)}>Save</button>

@@ -6,7 +6,7 @@ import { Composer } from "./Composer.js";
 import { Icon } from "./Icon.js";
 import { clip, homePath } from "../format.js";
 
-const KIND = { reply: "reply", agent: "agent run", template: "template run", summarize: "summary", title: "naming attempt" } as const;
+const KIND = { reply: "reply", agent: "agent run", template: "template run", summarize: "summary", title: "naming attempt", combine: "combine" } as const;
 
 export function ChatView() {
   const thread = useStore(s => s.thread);
@@ -96,7 +96,7 @@ function AttentionBar() {
             )}
           </div>
           {item.kept && item.node_id && (
-            <button className="btn btn-sm" onClick={() => setUi({ focus: item.node_id! })}>Show it</button>
+            <button className="btn btn-sm" onClick={() => setUi({ visit: { focus: item.node_id! } })}>Show it</button>
           )}
           <button className="btn btn-ghost btn-sm" onClick={() => run("mark_seen", { run_ids: [item.run.id] })}>Dismiss</button>
         </div>

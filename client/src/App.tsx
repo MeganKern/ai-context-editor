@@ -94,7 +94,7 @@ export function App() {
       </div>
 
       {ui.noteEditor && <NoteEditor noteId={ui.noteEditor} onClose={() => setUi({ noteEditor: null })} />}
-      {ui.notePicker && <NotePicker />}
+      {ui.mode?.kind === "notePicker" && <NotePicker />}
       <PromptInspector />
       <BranchesDialog />
 

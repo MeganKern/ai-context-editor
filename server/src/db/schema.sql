@@ -33,7 +33,6 @@ CREATE TABLE workspaces (
   id                text PRIMARY KEY,
   name              text NOT NULL,
   path              text NOT NULL UNIQUE,
-  agent_preamble    text,
   agent_permission  text NOT NULL DEFAULT 'locked',
   created_at        timestamptz NOT NULL DEFAULT now()
 );
@@ -41,6 +40,7 @@ CREATE TABLE workspaces (
 CREATE TABLE folders (
   id            text PRIMARY KEY,
   workspace_id  text NOT NULL REFERENCES workspaces(id),
+  parent_id     text REFERENCES folders(id) ON DELETE SET NULL,
   name          text NOT NULL,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -48,10 +48,13 @@ CREATE TABLE folders (
 CREATE TABLE notes (
   id            text PRIMARY KEY,
   workspace_id  text NOT NULL REFERENCES workspaces(id),
+  folder_id     text REFERENCES folders(id) ON DELETE SET NULL,
   name          text NOT NULL,
   content_hash  text NOT NULL REFERENCES blobs(hash),
   -- A thread's own copy of another item (it keeps the name, so the model's heading doesn't change).
   copied_from   text REFERENCES notes(id),
+  -- This note is a newer version of the one it supersedes. Forms a chain, not a tree.
+  supersedes    text REFERENCES notes(id) ON DELETE SET NULL,
   deleted_at    timestamptz,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -79,8 +82,9 @@ CREATE TABLE threads (
 
 CREATE TABLE runs (
   id                     text PRIMARY KEY,
-  thread_id              text NOT NULL REFERENCES threads(id),
-  kind                   text NOT NULL CHECK (kind IN ('reply', 'agent', 'template', 'summarize', 'title')),
+  workspace_id           text NOT NULL REFERENCES workspaces(id),
+  thread_id              text REFERENCES threads(id),
+  kind                   text NOT NULL CHECK (kind IN ('reply', 'agent', 'template', 'summarize', 'title', 'combine')),
   status                 text NOT NULL DEFAULT 'queued'
                            CHECK (status IN ('queued', 'running', 'done', 'failed', 'stopped', 'timed_out', 'interrupted')),
   -- A step of a template run.
@@ -132,11 +136,12 @@ CREATE TABLE runs (
   CHECK (follows_run_id IS NULL OR follows_run_id <> id)
 );
 CREATE UNIQUE INDEX one_live_run_per_node ON runs (node_id) WHERE status IN ('queued', 'running');
-CREATE INDEX runs_thread ON runs (thread_id, created_at DESC);
+CREATE INDEX runs_workspace ON runs (workspace_id, created_at DESC);
+CREATE INDEX runs_thread ON runs (thread_id, created_at DESC) WHERE thread_id IS NOT NULL;
 CREATE INDEX runs_node ON runs (node_id, created_at DESC) WHERE node_id IS NOT NULL;
 CREATE INDEX runs_parent ON runs (parent_run_id) WHERE parent_run_id IS NOT NULL;
 CREATE INDEX runs_follows ON runs (follows_run_id) WHERE follows_run_id IS NOT NULL;
-CREATE INDEX runs_live ON runs (thread_id) WHERE status IN ('queued', 'running');
+CREATE INDEX runs_live ON runs (workspace_id) WHERE status IN ('queued', 'running');
 
 -- You've seen how a run ended (on its card, or by dismissing its notice). View state: no history.
 CREATE TABLE run_seen (
@@ -274,6 +279,7 @@ CREATE TABLE summaries (
   cut_off         boolean NOT NULL DEFAULT false,
   -- Your note for the next draft of a summary under review.
   feedback        text,
+  instructions_hash text REFERENCES blobs(hash),
   copied_from     text,
   created_at      timestamptz NOT NULL DEFAULT now(),
   CHECK (status IN ('drafting', 'review', 'discarded') OR content_hash IS NOT NULL)
@@ -430,6 +436,27 @@ CREATE FUNCTION finalize_change_set(cs text) RETURNS void AS $$
       SELECT row_id FROM row_history WHERE change_set = cs AND tbl = 'workspaces' LIMIT 1))
   WHERE c.id = cs;
 $$ LANGUAGE sql;
+
+-- Global system message — instructions that shape every model reply, across all workspaces and threads.
+-- One row (id = 'global'). Changes go through the writer (change_sets + row_history). The text is
+-- content-addressed in blobs, and every run records the text_hash it used in its manifest.
+CREATE TABLE system_message (
+  id         text PRIMARY KEY DEFAULT 'global',
+  text_hash  text REFERENCES blobs(hash),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER history AFTER INSERT OR UPDATE OR DELETE ON system_message
+  FOR EACH ROW EXECUTE FUNCTION record_row_change();
+
+-- Agent preamble — per-workspace standing instructions prepended to every agent's brief.
+-- One row per workspace (id = workspace_id). Content-addressed in blobs, tracked in row_history.
+CREATE TABLE agent_preamble (
+  id         text PRIMARY KEY REFERENCES workspaces(id),
+  text_hash  text REFERENCES blobs(hash),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TRIGGER history AFTER INSERT OR UPDATE OR DELETE ON agent_preamble
+  FOR EACH ROW EXECUTE FUNCTION record_row_change();
 
 -- App-level settings (key-value). Not workspace-scoped — things like which LLM backend to use.
 CREATE TABLE settings (

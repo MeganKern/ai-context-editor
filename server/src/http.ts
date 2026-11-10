@@ -241,6 +241,20 @@ export function createApp(ready: () => boolean): express.Express {
     }
   });
 
+  // ── System message ──────────────────────────────────────────────────
+  app.get("/api/system-message", async (_req, res) => {
+    try {
+      await readTx(async (tx) => {
+        const { rows: [row] } = await tx.query<{ text: Buffer | null }>(
+          `SELECT b.content AS text FROM system_message sm LEFT JOIN blobs b ON b.hash = sm.text_hash WHERE sm.id = 'global'`);
+        res.json({ text: row?.text?.toString("utf-8") ?? "" });
+      });
+    } catch (e) {
+      console.error("GET /api/system-message error:", e);
+      res.status(500).json({ error: "Internal error", code: "internal" });
+    }
+  });
+
   // ── Settings ─────────────────────────────────────────────────────────
   app.get("/api/settings", async (_req, res) => {
     try {

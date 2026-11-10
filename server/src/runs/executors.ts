@@ -31,15 +31,16 @@ export interface ProducerResult {
   output_tokens?: number;
 }
 
+import type { RunKind } from "./handlers/index.js";
+
 export interface RunRow {
-  id: string; thread_id: string; workspace_id: string; kind: "reply" | "agent" | "summarize" | "title";
+  id: string; thread_id: string | null; workspace_id: string; kind: RunKind;
   node_id: string | null; summary_id: string | null; model_id: string;
 }
 
-/** A reply, a summary or a name: the messages decided at the start, streamed. */
-async function produceChat(run: RunRow, payload: Payload, io: ProducerIO): Promise<ProducerResult> {
+export async function produceChat(run: RunRow, payload: Payload, io: ProducerIO): Promise<ProducerResult> {
   if (payload.kind !== "chat") throw new Error("Expected a chat prompt");
-  const gen = llm.stream(payload.messages, { model: run.model_id, maxTokens: payload.maxTokens, signal: io.signal, onActivity: io.activity });
+  const gen = llm.stream(payload.messages, { model: run.model_id, maxTokens: payload.maxTokens, effort: payload.effort, signal: io.signal, onActivity: io.activity });
   let text = "";
   for (;;) {
     const next = await gen.next();
@@ -59,7 +60,7 @@ const EXPIRED_SESSION = "No conversation found with session ID";
  * it follows in a fork. The folder is scanned before and after, so what changed there is known
  * however the run ends.
  */
-async function produceAgent(run: RunRow, payload: Payload, io: ProducerIO): Promise<ProducerResult> {
+export async function produceAgent(run: RunRow, payload: Payload, io: ProducerIO): Promise<ProducerResult> {
   if (payload.kind !== "agent") throw new Error("Expected an agent brief");
   const db = getPool();
   const { rows: [ws] } = await db.query<{ path: string }>("SELECT path FROM workspaces WHERE id = $1", [run.workspace_id]);
@@ -143,9 +144,3 @@ async function produceAgent(run: RunRow, payload: Payload, io: ProducerIO): Prom
   };
 }
 
-export const PRODUCERS: Record<RunRow["kind"], (run: RunRow, payload: Payload, io: ProducerIO) => Promise<ProducerResult>> = {
-  reply: produceChat,
-  agent: produceAgent,
-  summarize: produceChat,
-  title: produceChat,
-};

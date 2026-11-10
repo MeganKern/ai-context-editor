@@ -25,8 +25,8 @@ export async function advance(tx: Tx, ctx: Ctx, templateRunId: string): Promise<
     return;
   }
 
-  const { rows: [out] } = await tx.query<{ model: string | null }>(
-    "SELECT model FROM threads WHERE id = $1 AND deleted_at IS NULL", [run.output_thread_id]);
+  const { rows: [out] } = await tx.query<{ model: string | null; workspace_id: string }>(
+    "SELECT model, workspace_id FROM threads WHERE id = $1 AND deleted_at IS NULL", [run.output_thread_id]);
   if (!out) {
     await endRun(tx, templateRunId, { status: "failed", error: "its thread was deleted" }, ctx);
     return;
@@ -48,7 +48,7 @@ export async function advance(tx: Tx, ctx: Ctx, templateRunId: string): Promise<
         input = { task: step.content, preamble: ws?.agent_preamble ?? undefined, permission: ws?.agent_permission ?? "locked" };
       }
       await insertRun(tx, ctx, {
-        threadId, kind: step.kind, key: await endKey(tx, threadId), modelAlias: out.model,
+        workspaceId: out.workspace_id, threadId, kind: step.kind, key: await endKey(tx, threadId), modelAlias: out.model,
         parentRunId: templateRunId, input,
       });
       await saveProgress(tx, templateRunId, cursor, script.length);

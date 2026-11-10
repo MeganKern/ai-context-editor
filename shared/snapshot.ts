@@ -1,6 +1,6 @@
 export type Role = "user" | "assistant" | "agent";
 export type AuthorKind = "you" | "model" | "agent" | "template";
-export type RunKind = "reply" | "agent" | "template" | "summarize" | "title";
+export type RunKind = "reply" | "agent" | "template" | "summarize" | "title" | "combine";
 export type RunStatus = "queued" | "running" | "done" | "failed" | "stopped" | "timed_out" | "interrupted";
 export type SummaryStatus = "drafting" | "review" | "active" | "inactive" | "discarded";
 export type StepKind = "post" | "reply" | "agent";
@@ -65,7 +65,7 @@ export interface WorkspaceSnapshot {
   seq: number;
   workspace: { id: string; name: string; path: string };
   agent_defaults: { preamble: string; permission: "locked" | "standard" | "full" };
-  folders: { id: string; name: string }[];
+  folders: { id: string; name: string; parent_id: string | null }[];
   threads: { id: string; name: string; kind: "chat" | "template"; created_at: string;
              place: ThreadPlace;
              template_runs: number | null;
@@ -79,7 +79,7 @@ export interface WorkspaceSnapshot {
              flags: ThreadFlags }[];
   /** used_in counts every thread that uses the item, template runs' threads included.
    *  copied_from: this item is a thread's own copy of that one. */
-  notes: { id: string; name: string; tokens: number; used_in: number; content_hash: string; copied_from: string | null }[];
+  notes: { id: string; name: string; tokens: number; used_in: number; content_hash: string; copied_from: string | null; folder_id: string | null; supersedes: string | null }[];
   models: { alias: string; id: string; window: number; default: boolean }[];
 }
 
@@ -271,7 +271,7 @@ export interface ThreadSnapshot {
   context: { tokens: number; window: number; output_reserve: number;
              /** Real tokens ÷ estimated tokens, from the latest reply that reported its real count. */
              ratio: number | null;
-             parts: { kind: "directives" | "note" | "messages" | "summary"; ref: string | null; tokens: number }[] };
+             parts: { kind: "system_message" | "directives" | "note" | "messages" | "summary"; ref: string | null; tokens: number }[] };
   template: null | {
     steps: { id: string; position: number; kind: StepKind; content: string }[];
     variables: { name: string; auto: boolean; known: boolean; required: boolean; default: string | null }[];
@@ -281,7 +281,7 @@ export interface ThreadSnapshot {
 
 export type StreamEvent =
   | { type: "changed"; seq: number; thread_ids: string[] }
-  | { type: "run.output"; run_id: string; thread_id: string; offset: number; text?: string; event?: AgentEvent };
+  | { type: "run.output"; run_id: string; thread_id: string | null; offset: number; text?: string; event?: AgentEvent };
 
 export interface WorkspaceListItem { id: string; name: string; path: string }
 export interface NoteDetail { id: string; name: string; content: string; tokens: number }

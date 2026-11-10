@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useStore } from "../store.js";
-import { saveDraft } from "../api.js";
+import { saveDraft, getSystemMessage } from "../api.js";
 import { AGENT_PERMISSIONS, AGENT_PERMISSION_LABELS, AGENT_PERMISSION_TOOLS, DEFAULT_AGENT_PREAMBLE, DEFAULT_AGENT_PERMISSION,
   AGENT_EFFORTS, AGENT_EFFORT_LABELS, DEFAULT_AGENT_EFFORT, type AgentPermission, type AgentEffort } from "../../../shared/agent.js";
 import { Icon } from "./Icon.js";
@@ -68,7 +68,8 @@ export function Composer() {
   const [task, setTask] = useState("");
   const [busy, setBusy] = useState(false);
   const [dropOver, setDropOver] = useState(false);
-  const [agentEffort, setAgentEffort] = useState<AgentEffort>(DEFAULT_AGENT_EFFORT);
+  const [sysMsgOpen, setSysMsgOpen] = useState(false);
+  const [effort, setEffort] = useState<AgentEffort | "">("")
   const msgRef = useRef<HTMLTextAreaElement>(null);
   const taskRef = useRef<HTMLTextAreaElement>(null);
   const agentCfg = useRef<{ permission: AgentPermission; preamble: string }>({
@@ -121,7 +122,7 @@ export function Composer() {
     const tid = thread.thread.id;
     setBusy(true);
     try {
-      const r = await run("send_message", { thread_id: tid, content: text.trim(), reply, note_ids: withNext.map(n => n.id) });
+      const r = await run("send_message", { thread_id: tid, content: text.trim(), reply, note_ids: withNext.map(n => n.id), effort: reply && effort ? effort : undefined });
       if (!r) return;
       rememberDraft(tid, { message: "", task: typed.get(tid)?.task ?? "" });
       if (shown.current === tid) setText("");
@@ -133,10 +134,10 @@ export function Composer() {
   };
   const acceptsDrop = (e: React.DragEvent) => !isAgent && e.dataTransfer.types.includes(LIBRARY_TYPE);
 
-  const startAgent = async (perm: AgentPermission, pre: string, eff?: AgentEffort) => {
+  const startAgent = async (perm: AgentPermission, pre: string, eff?: AgentEffort | "") => {
     if (!task.trim() || sending) return;
     const tid = thread.thread.id;
-    const extra = { preamble: pre || undefined, permission: perm, effort: eff };
+    const extra = { preamble: pre || undefined, permission: perm, effort: (eff || DEFAULT_AGENT_EFFORT) as AgentEffort };
     const r = continueId
       ? await run("agent_follow_up", { message_id: continueId, message: task.trim(), ...extra })
       : await run("dispatch_agent", { thread_id: tid, task: task.trim(), ...extra });
@@ -144,20 +145,6 @@ export function Composer() {
     rememberDraft(tid, { message: typed.get(tid)?.message ?? "", task: "" });
     if (shown.current === tid) { setTask(""); setUi({ composer: { mode: "message", continueMessageId: null } }); }
   };
-
-  const modelSelect = (
-    <label className="composer-model" title="The model that replies in this thread">
-      <span className="sr-only">Model for this thread</span>
-      <select
-        value={thread.thread.model ?? ""}
-        onChange={e => run("set_thread_model", { thread_id: thread.thread.id, model: e.target.value || null })}
-      >
-        <option value="">{def ? `${modelLabel(def.alias, def.id)} (default)` : "Default model"}</option>
-        {models.map(m => <option key={m.alias} value={m.alias}>{modelLabel(m.alias, m.id)}</option>)}
-      </select>
-      <Icon name="chevronDown" />
-    </label>
-  );
 
   return (
     <div className={`composer ${isAgent ? "is-agent" : ""}`}>
@@ -189,28 +176,25 @@ export function Composer() {
                 onClick={() => setUi({ composer: { mode: "agent", continueMessageId: null } })}><Icon name="close" /></button>
             </span>
           )}
-          {isAgent && (
-            <>
-              <span className="spacer" />
-              <label className="agent-config-select" title="Model for this agent">
-                <span className="agent-config-label">Model</span>
-                <select value={thread.thread.model ?? ""} onChange={e => run("set_thread_model", { thread_id: thread.thread.id, model: e.target.value || null })}>
-                  <option value="">{def ? `${modelLabel(def.alias, def.id)} (default)` : "Default"}</option>
-                  {models.map(m => <option key={m.alias} value={m.alias}>{modelLabel(m.alias, m.id)}</option>)}
-                </select>
-                <Icon name="chevronDown" />
-              </label>
-              <label className="agent-config-select" title="Thinking effort level (--effort flag)">
-                <span className="agent-config-label">Effort</span>
-                <select value={agentEffort} onChange={e => setAgentEffort(e.target.value as AgentEffort)}>
-                  {AGENT_EFFORTS.map(e => (
-                    <option key={e} value={e}>{AGENT_EFFORT_LABELS[e]}</option>
-                  ))}
-                </select>
-                <Icon name="chevronDown" />
-              </label>
-            </>
-          )}
+          <span className="spacer" />
+          <label className="agent-config-select" title="Model for this thread">
+            <span className="agent-config-label">Model</span>
+            <select value={thread.thread.model ?? ""} onChange={e => run("set_thread_model", { thread_id: thread.thread.id, model: e.target.value || null })}>
+              <option value="">{def ? `${modelLabel(def.alias, def.id)} (default)` : "Default"}</option>
+              {models.map(m => <option key={m.alias} value={m.alias}>{modelLabel(m.alias, m.id)}</option>)}
+            </select>
+            <Icon name="chevronDown" />
+          </label>
+          <label className="agent-config-select" title="Thinking effort level">
+            <span className="agent-config-label">Effort</span>
+            <select value={effort} onChange={e => setEffort(e.target.value as AgentEffort | "")}>
+              <option value="">Default</option>
+              {AGENT_EFFORTS.map(e => (
+                <option key={e} value={e}>{AGENT_EFFORT_LABELS[e]}</option>
+              ))}
+            </select>
+            <Icon name="chevronDown" />
+          </label>
         </div>
 
         {!isAgent ? (
@@ -241,7 +225,7 @@ export function Composer() {
             disabled={sending}
             onKeyDown={e => {
               if (e.key === "Escape") setMode("message");
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void startAgent(agentCfg.current.permission, agentCfg.current.preamble, agentEffort); }
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void startAgent(agentCfg.current.permission, agentCfg.current.preamble, effort); }
             }}
           />
         )}
@@ -261,12 +245,15 @@ export function Composer() {
           </div>
         )}
 
-        {isAgent && <AgentConfig ws={ws} onStart={(perm, pre) => startAgent(perm, pre, agentEffort)}
+        {isAgent && <AgentConfig ws={ws} onStart={(perm, pre) => startAgent(perm, pre, effort)}
           sending={sending} taskEmpty={!task.trim()} continueId={continueId} cfgRef={agentCfg} />}
 
         {!isAgent && (
           <div className="composer-bar">
-            {modelSelect}
+            <button className={`btn btn-sm btn-ghost sys-msg-toggle ${sysMsgOpen ? "is-open" : ""}`}
+              onClick={() => setSysMsgOpen(o => !o)} title={B.set_system_message.help}>
+              System message
+            </button>
             <span className="spacer" />
             <button className="btn btn-send" onClick={() => send(false)} disabled={empty || sending}
               title={B.send_message.tip}>
@@ -278,6 +265,7 @@ export function Composer() {
             </button>
           </div>
         )}
+        {!isAgent && <SystemMessagePanel open={sysMsgOpen} />}
       </div>
       {!isAgent && (
         <div className="composer-foot">
@@ -331,6 +319,10 @@ function AgentConfig({ ws, onStart, sending, taskEmpty, continueId, cfgRef }: {
   return (
     <div className="agent-config">
       <div className="agent-config-row">
+        <button className="btn btn-sm btn-ghost" onClick={() => setShowPreamble(s => !s)}>
+          Agent system message
+        </button>
+        <span className="spacer" />
         <div className="agent-config-perm-group">
           <div className="agent-config-perm-head">
             <label className="agent-config-perm">
@@ -356,10 +348,6 @@ function AgentConfig({ ws, onStart, sending, taskEmpty, continueId, cfgRef }: {
             </div>
           )}
         </div>
-        <span className="spacer" />
-        <button className="btn btn-sm btn-ghost" onClick={() => setShowPreamble(s => !s)}>
-          Agent system message
-        </button>
         <button className="btn btn-agent-primary btn-send" onClick={() => onStart(permission, preamble)} disabled={taskEmpty || sending}>
           <Icon name="play" /> {continueId ? "Send to agent" : "Start agent"} <kbd>{MOD} ⏎</kbd>
         </button>
@@ -383,6 +371,54 @@ function AgentConfig({ ws, onStart, sending, taskEmpty, continueId, cfgRef }: {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SystemMessagePanel({ open }: { open: boolean }) {
+  const run = useStore(s => s.run);
+  const [text, setText] = useState("");
+  const [saved, setSaved] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const edited = text !== saved;
+
+  useEffect(() => {
+    if (!open || loaded) return;
+    let live = true;
+    void getSystemMessage().then(t => { if (live) { setText(t); setSaved(t); setLoaded(true); } });
+    return () => { live = false; };
+  }, [open, loaded]);
+
+  useEffect(() => {
+    if (open && loaded && ref.current) {
+      ref.current.focus();
+      ref.current.setSelectionRange(ref.current.value.length, ref.current.value.length);
+    }
+  }, [open, loaded]);
+
+  const save = async () => {
+    await run("set_system_message", { text: text.trim() });
+    const trimmed = text.trim();
+    setSaved(trimmed);
+    setText(trimmed);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="sys-msg-editor">
+      <textarea
+        ref={ref}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="Instructions that shape every reply, in every thread…"
+        rows={4}
+      />
+      <div className="sys-msg-actions">
+        {edited && <button className="btn btn-sm btn-ghost" onClick={() => setText(saved)}>Reset</button>}
+        {edited && <button className="btn btn-sm btn-primary" onClick={save}>Save</button>}
+      </div>
     </div>
   );
 }

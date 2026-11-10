@@ -43,7 +43,7 @@ export function CardHistory({ cardId, role, count }: { cardId: string; role: Rol
             {!r.complete && <span className="history-tag is-cut" title="It ends part-way, and this says why">{r.cut_off ? CUT[r.cut_off] : "Unfinished"}</span>}
             <span className="spacer" />
             {r.run?.has_prompt && (
-              <button className="act" onClick={() => setUi({ inspector: { tab: "run", runId: r.run!.id } })}
+              <button className="act" onClick={() => setUi({ mode: { kind: "inspector", tab: "run", runId: r.run!.id } })}
                 title={role === "agent" ? "The exact brief the agent was handed for this text" : "The exact prompt this text was written from"}>
                 <Icon name="code" /> {role === "agent" ? "Brief" : "Prompt"}
               </button>

@@ -98,7 +98,7 @@ function PanelHead({ thread }: { thread: ThreadSnapshot }) {
       <div className="ctxp-title-row">
         <h2 className="ctxp-title">Context</h2>
         <span className="spacer" />
-        <button className="btn btn-ghost btn-sm ctxp-prompt" onClick={() => setUi({ inspector: { tab: "reply", runId: null } })}
+        <button className="btn btn-ghost btn-sm ctxp-prompt" onClick={() => setUi({ mode: { kind: "inspector", tab: "reply", runId: null } })}
           title="Word for word what the next reply would be sent">
           <Icon name="code" /> Exact prompt
         </button>

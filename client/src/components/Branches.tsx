@@ -48,11 +48,11 @@ export function BranchPoint({ choices, current, pointKey }: { choices: ThreadRow
 export function BranchesDialog() {
   const ws = useStore(s => s.ws);
   const thread = useStore(s => s.thread);
-  const open = useStore(s => s.ui.branchesOpen);
+  const open = useStore(s => s.ui.visit.branchesOpen);
   const setUi = useStore(s => s.setUi);
   const openThread = useStore(s => s.openThread);
   if (!open || !ws || !thread) return null;
-  const close = () => setUi({ branchesOpen: false });
+  const close = () => setUi({ visit: { branchesOpen: false } });
   const family = conversationOf(ws.threads, thread.thread.id);
   const choose = (t: ThreadRow) => {
     close();

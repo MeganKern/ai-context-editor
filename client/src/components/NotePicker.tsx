@@ -12,7 +12,7 @@ import { clip } from "../format.js";
 export function NotePicker() {
   const ws = useStore(s => s.ws);
   const thread = useStore(s => s.thread);
-  const picker = useStore(s => s.ui.notePicker);
+  const picker = useStore(s => s.ui.mode?.kind === "notePicker" ? s.ui.mode : null);
   const setUi = useStore(s => s.setUi);
   const run = useStore(s => s.run);
   const [q, setQ] = useState("");
@@ -22,16 +22,16 @@ export function NotePicker() {
   useEffect(() => { inputRef.current?.focus(); }, []);
   if (!ws || !thread || !picker) return null;
 
-  const close = () => setUi({ notePicker: null });
+  const close = () => setUi({ mode: null });
   const where = thread.thread.kind === "template" ? "template" : "thread";
   const placed = new Map(thread.items.map(i => [i.note_id, i]));
-  const target = picker.mode === "attach" ? thread.messages.find(m => m.id === picker.messageId) : null;
+  const target = picker.target === "attach" ? thread.messages.find(m => m.id === picker.messageId) : null;
   const notes = ws.notes.filter(n => n.name.toLowerCase().includes(q.trim().toLowerCase()));
   // Where it is here now, as the choice would change it.
   const status = (noteId: string): { already: boolean; meta: string | null } => {
     const p = placed.get(noteId);
     if (!p) return { already: false, meta: null };
-    if (picker.mode === "load") {
+    if (picker.target === "load") {
       return p.placement === "every_reply" ? { already: true, meta: "Already added" } : { already: false, meta: "moves here from its message" };
     }
     if (p.placement === "with_message" && p.message_id === picker.messageId) return { already: true, meta: "Already with this message" };
@@ -41,30 +41,30 @@ export function NotePicker() {
   const choose = async (noteId: string) => {
     const ok = await run("place_item", {
       thread_id: thread.thread.id, note_id: noteId,
-      place: picker.mode === "load" ? { placement: "every_reply" } : { placement: "with_message", message_id: picker.messageId },
+      place: picker.target === "load" ? { placement: "every_reply" } : { placement: "with_message", message_id: picker.messageId },
     });
     if (ok) close();
   };
 
   // A new item is created right away, added here, and opened.
-  const canCreate = picker.mode === "load";
+  const canCreate = picker.target === "load";
   const createNew = async () => {
     const name = q.trim();
     if (!name) { setCreating(true); return; }
     const r = await run("create_note", { workspace_id: ws.workspace.id, name, load_into_thread_id: thread.thread.id });
-    if (r) setUi({ notePicker: null, noteEditor: r.note_id });
+    if (r) setUi({ mode: null, noteEditor: r.note_id });
   };
 
   return createPortal(
     <div className="overlay" onMouseDown={close}>
       <div className="dialog note-picker" role="dialog" aria-modal="true"
-        aria-label={picker.mode === "load" ? `Add from the library to this ${where}` : "Send a library item with this message"}
+        aria-label={picker.target === "load" ? `Add from the library to this ${where}` : "Send a library item with this message"}
         onMouseDown={e => e.stopPropagation()} onKeyDown={e => { if (e.key === "Escape") close(); }}>
         <div className="dialog-head">
           <div>
-            <h2 className="dialog-title">{picker.mode === "load" ? `Add from the library to this ${where}` : "Send a library item with this message"}</h2>
+            <h2 className="dialog-title">{picker.target === "load" ? `Add from the library to this ${where}` : "Send a library item with this message"}</h2>
             <p className="dialog-sub">
-              {picker.mode === "load"
+              {picker.target === "load"
                 ? (where === "template" ? "Every run uses it — the same item, not a copy — and sends it with every reply." : "It's sent with every reply in this thread, until you exclude it.")
                 : <>It goes with “{clip(target?.content ?? "", 60)}” and nowhere else in this thread: it's sent right after that message whenever the message is sent.</>}
             </p>

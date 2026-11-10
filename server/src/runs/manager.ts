@@ -6,8 +6,9 @@ import { waitReason, type Wait } from "../domain/readiness.js";
 import type { Payload } from "../domain/prompts.js";
 import type { FileChange } from "../domain/run-ending.js";
 import { SHUTDOWN_GRACE_MS } from "./config.js";
-import { RUN_KINDS, POOL_LIMITS, type RunKind } from "./kinds.js";
-import { PRODUCERS, type ProducerIO, type RunRow } from "./executors.js";
+import { POOL_LIMITS, type Pool, type RunHandler } from "./handler.js";
+import { getHandler } from "./handlers/index.js";
+import { type ProducerIO, type RunRow, produceChat, produceAgent } from "./executors.js";
 
 /**
  * Starts queued runs and sees them through. A run starts once its kind has a free slot and nothing
@@ -21,11 +22,11 @@ import { PRODUCERS, type ProducerIO, type RunRow } from "./executors.js";
 const CHECKPOINT_MS = 1000;
 const REPORT_RETRIES = 5;
 
-type Pool = RunKind["pool"];
 type Kind = RunRow["kind"];
 
 interface Live {
   kind: Kind;
+  handler: RunHandler;
   threadId: string | null;
   controller: AbortController;
   text: string;
@@ -34,9 +35,9 @@ interface Live {
   ended: Promise<void>;
 }
 
-interface Waiting { runId: string; kind: Kind; wait: Wait | "capacity" | null }
+interface Waiting { runId: string; kind: Kind; handler: RunHandler; wait: Wait | "capacity" | null }
 
-export interface RunOutput { run_id: string; thread_id: string; workspace_id: string; offset: number; text?: string; event?: AgentEvent }
+export interface RunOutput { run_id: string; thread_id: string | null; workspace_id: string; offset: number; text?: string; event?: AgentEvent }
 let outputListener: ((o: RunOutput) => void) | null = null;
 export function onRunOutput(fn: (o: RunOutput) => void): void { outputListener = fn; }
 
@@ -45,8 +46,7 @@ const live = new Map<string, Live>();
 let shuttingDown = false;
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-const poolOf = (kind: Kind): Pool => RUN_KINDS[kind].pool;
-const inUse = (pool: Pool) => [...live.values()].filter(l => poolOf(l.kind) === pool).length;
+const inUse = (pool: Pool) => [...live.values()].filter(l => l.handler.pool === pool).length;
 
 async function report(name: string, args: Record<string, unknown>, runId: string): Promise<any> {
   for (let attempt = 0; ; attempt++) {
@@ -83,7 +83,7 @@ async function drain(): Promise<void> {
       drainAgain = false;
       for (const w of [...waiting]) {
         if (shuttingDown) return;
-        if (inUse(poolOf(w.kind)) >= POOL_LIMITS[poolOf(w.kind)]) { w.wait = "capacity"; continue; }
+        if (inUse(w.handler.pool) >= POOL_LIMITS[w.handler.pool]) { w.wait = "capacity"; continue; }
         let wait: Wait | null;
         try { wait = await waitReason(getPool(), w.runId); } catch (e) { console.error(`Run ${w.runId}: couldn't check whether it can start:`, e); continue; }
         if (wait) { w.wait = wait; continue; }
@@ -101,7 +101,7 @@ async function drain(): Promise<void> {
 function launch(w: Waiting): void {
   let ended!: () => void;
   const entry: Live = {
-    kind: w.kind, threadId: null, controller: new AbortController(), text: "", steps: [], raw: [],
+    kind: w.kind, handler: w.handler, threadId: null, controller: new AbortController(), text: "", steps: [], raw: [],
     ended: new Promise<void>(r => { ended = r; }),
   };
   live.set(w.runId, entry);
@@ -114,10 +114,10 @@ function launch(w: Waiting): void {
     });
 }
 
-function timeoutMessage(reason: string, kind: RunKind): string {
+function timeoutMessage(reason: string, h: RunHandler): string {
   return reason === "idle"
-    ? `Nothing arrived for ${Math.round((kind.idleTimeoutMs ?? 0) / 60_000)} minutes`
-    : `It took longer than ${Math.round((kind.totalTimeoutMs ?? 0) / 1000)} seconds`;
+    ? `Nothing arrived for ${Math.round((h.idleTimeoutMs ?? 0) / 60_000)} minutes`
+    : `It took longer than ${Math.round((h.totalTimeoutMs ?? 0) / 1000)} seconds`;
 }
 
 async function execute(w: Waiting, entry: Live): Promise<void> {
@@ -130,19 +130,19 @@ async function execute(w: Waiting, entry: Live): Promise<void> {
   }
   const { controller } = entry;
   const { rows: [row] } = await getPool().query<RunRow>(
-    `SELECT r.id, r.thread_id, t.workspace_id, r.kind, r.node_id, r.summary_id, r.model_id
-     FROM runs r JOIN threads t ON t.id = r.thread_id WHERE r.id = $1`, [runId]);
+    `SELECT id, thread_id, workspace_id, kind, node_id, summary_id, model_id
+     FROM runs WHERE id = $1`, [runId]);
   entry.threadId = row.thread_id;
-  const kind = RUN_KINDS[row.kind];
+  const h = entry.handler;
 
   let idle: ReturnType<typeof setTimeout> | null = null;
   const touch = () => {
-    if (!kind.idleTimeoutMs) return;
+    if (!h.idleTimeoutMs) return;
     if (idle) clearTimeout(idle);
-    idle = setTimeout(() => controller.abort("idle"), kind.idleTimeoutMs);
+    idle = setTimeout(() => controller.abort("idle"), h.idleTimeoutMs);
   };
   touch();
-  const total = kind.totalTimeoutMs ? setTimeout(() => controller.abort("total"), kind.totalTimeoutMs) : null;
+  const total = h.totalTimeoutMs ? setTimeout(() => controller.abort("total"), h.totalTimeoutMs) : null;
 
   let saved = { text: 0, raw: 0 };
   let saving: Promise<void> | null = null;
@@ -183,9 +183,10 @@ async function execute(w: Waiting, entry: Live): Promise<void> {
     setChanges: (c) => { changes = c; },
   };
 
+  const produce = h.producer === "agent" ? produceAgent : produceChat;
   let ending: { name: "complete_run" | "fail_run"; args: Record<string, unknown>; result?: string };
   try {
-    const r = await PRODUCERS[row.kind](row, started.payload!, io);
+    const r = await produce(row, started.payload!, io);
     ending = {
       name: "complete_run", result: r.result,
       args: { finish: r.finish, input_tokens: r.input_tokens, output_tokens: r.output_tokens },
@@ -194,10 +195,10 @@ async function execute(w: Waiting, entry: Live): Promise<void> {
     const reason = controller.signal.aborted ? String(controller.signal.reason) : null;
     const status = reason === "idle" || reason === "total" ? "timed_out"
       : reason === "shutdown" ? "interrupted" : reason ? "stopped" : "failed";
-    const error = status === "timed_out" ? timeoutMessage(reason!, kind)
+    const error = status === "timed_out" ? timeoutMessage(reason!, h)
       : status === "interrupted" ? "The server shut down while it was running"
       : status === "failed" ? (e instanceof Error ? e.message : String(e)) : undefined;
-    ending = { name: "fail_run", result: kind.keepPartialText && entry.text.trim() ? entry.text : undefined, args: { status, error } };
+    ending = { name: "fail_run", result: h.keepPartialText && entry.text.trim() ? entry.text : undefined, args: { status, error } };
   } finally {
     clearInterval(checkpoints);
     if (idle) clearTimeout(idle);
@@ -209,7 +210,7 @@ async function execute(w: Waiting, entry: Live): Promise<void> {
     await report(ending.name, {
       run_id: runId, ...ending.args,
       // A reply's or an agent's result becomes a text of its card, so the message search indexes it.
-      result_hash: await store(ending.result, { searchable: row.node_id !== null }),
+      result_hash: await store(ending.result, { searchable: h.searchableResult }),
       transcript_hash: await store(entry.raw.length ? entry.raw.join("\n") : undefined),
       changes,
     }, runId);
@@ -238,11 +239,12 @@ const manager: RunManager = {
   start(runId) {
     if (shuttingDown || live.has(runId) || waiting.some(w => w.runId === runId)) return;
     (async () => {
-      const { rows: [r] } = await getPool().query<{ kind: Kind | "template" }>(
+      const { rows: [r] } = await getPool().query<{ kind: string }>(
         "SELECT kind FROM runs WHERE id = $1 AND status = 'queued'", [runId]);
       if (!r || r.kind === "template") return;
+      const handler = getHandler(r.kind);
       if (live.has(runId) || waiting.some(w => w.runId === runId)) return;
-      waiting.push({ runId, kind: r.kind, wait: null });
+      waiting.push({ runId, kind: r.kind as Kind, handler, wait: null });
       await drain();
     })().catch(e => console.error(`Run ${runId}: couldn't be queued:`, e));
   },
@@ -265,7 +267,7 @@ const manager: RunManager = {
     const out: Record<string, { offset: number; text?: string; steps?: AgentStep[] }> = {};
     for (const [runId, l] of live) {
       if (l.threadId !== threadId) continue;
-      out[runId] = l.kind === "agent" ? { offset: l.steps.length, steps: [...l.steps] } : { offset: l.text.length, text: l.text };
+      out[runId] = l.handler.producer === "agent" ? { offset: l.steps.length, steps: [...l.steps] } : { offset: l.text.length, text: l.text };
     }
     return out;
   },
@@ -279,8 +281,9 @@ const manager: RunManager = {
     if (!w) return null;
     if (w.wait === "above") return { reason: "waiting", detail: "Starts when the card above it is written" };
     if (w.wait === "agent") return { reason: "agent", detail: "Starts when the agent working in this workspace's folder ends" };
-    const n = inUse(poolOf(w.kind));
-    return { reason: "capacity", detail: poolOf(w.kind) === "agent" ? `${n} agents are already running` : `${n} model calls are already going` };
+    const pool = w.handler.pool;
+    const n = inUse(pool);
+    return { reason: "capacity", detail: pool === "agent" ? `${n} agents are already running` : `${n} model calls are already going` };
   },
 
   async shutdown() {

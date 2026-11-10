@@ -4,8 +4,9 @@ import { resolveModel } from "../runs/config.js";
 import { newRunCard } from "./cards.js";
 
 export interface NewRun {
-  threadId: string;
-  kind: "reply" | "agent" | "summarize" | "title";
+  workspaceId: string;
+  threadId?: string;
+  kind: "reply" | "agent" | "summarize" | "title" | "combine";
   /** reply / agent: the order key of the card it writes (a new card). */
   key?: string;
   summaryId?: string;
@@ -23,11 +24,11 @@ export interface NewRun {
  */
 export async function insertRun(tx: Tx, ctx: Ctx, r: NewRun): Promise<{ runId: string; nodeId: string | null }> {
   const runId = ctx.newId();
-  const nodeId = r.kind === "reply" || r.kind === "agent" ? await newRunCard(tx, ctx, { threadId: r.threadId, key: r.key!, kind: r.kind }) : null;
+  const nodeId = r.kind === "reply" || r.kind === "agent" ? await newRunCard(tx, ctx, { threadId: r.threadId!, key: r.key!, kind: r.kind }) : null;
   await tx.query(
-    `INSERT INTO runs (id, thread_id, kind, node_id, summary_id, model_id, parent_run_id, follows_run_id, input)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [runId, r.threadId, r.kind, nodeId, r.summaryId ?? null, resolveModel(r.modelAlias).id,
+    `INSERT INTO runs (id, workspace_id, thread_id, kind, node_id, summary_id, model_id, parent_run_id, follows_run_id, input)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [runId, r.workspaceId, r.threadId ?? null, r.kind, nodeId, r.summaryId ?? null, resolveModel(r.modelAlias).id,
      r.parentRunId ?? null, r.followsRunId ?? null, JSON.stringify(r.input ?? {})],
   );
   ctx.startRun(runId);
@@ -40,15 +41,14 @@ export async function insertRun(tx: Tx, ctx: Ctx, r: NewRun): Promise<{ runId: s
  */
 export async function rerunInPlace(
   tx: Tx, ctx: Ctx,
-  opts: { threadId: string; cardId: string; kind: "reply" | "agent"; modelAlias: string | null;
+  opts: { workspaceId: string; threadId: string; cardId: string; kind: "reply" | "agent"; modelAlias: string | null;
           input: Record<string, unknown>; followsRunId: string | null },
 ): Promise<string> {
-  // Asking for it again is acting on how it went: earlier attempts need no notice.
   await markSeenWhere(tx, "node_id = $1", [opts.cardId]);
   const runId = ctx.newId();
   await tx.query(
-    `INSERT INTO runs (id, thread_id, kind, node_id, model_id, follows_run_id, input) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [runId, opts.threadId, opts.kind, opts.cardId, resolveModel(opts.modelAlias).id, opts.followsRunId, JSON.stringify(opts.input)],
+    `INSERT INTO runs (id, workspace_id, thread_id, kind, node_id, model_id, follows_run_id, input) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [runId, opts.workspaceId, opts.threadId, opts.kind, opts.cardId, resolveModel(opts.modelAlias).id, opts.followsRunId, JSON.stringify(opts.input)],
   );
   ctx.startRun(runId);
   return runId;

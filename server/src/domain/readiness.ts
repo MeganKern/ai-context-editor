@@ -15,9 +15,9 @@ export async function waitReason(db: Db, runId: string): Promise<Wait | null> {
                WHERE om.thread_id = r.thread_id AND NOT om.deleted AND o.status IN ('queued', 'running') AND o.id <> r.id
                  AND om.order_key < (SELECT order_key FROM messages WHERE id = r.node_id)) AS above,
        r.kind = 'agent' AND EXISTS (
-         SELECT 1 FROM runs o JOIN threads ot ON ot.id = o.thread_id
-         WHERE o.kind = 'agent' AND o.status = 'running' AND o.id <> r.id AND ot.workspace_id = t.workspace_id) AS agent
-     FROM runs r JOIN threads t ON t.id = r.thread_id WHERE r.id = $1`, [runId]);
+         SELECT 1 FROM runs o
+         WHERE o.kind = 'agent' AND o.status = 'running' AND o.id <> r.id AND o.workspace_id = r.workspace_id) AS agent
+     FROM runs r WHERE r.id = $1`, [runId]);
   if (!r) return null;
   return r.above ? "above" : r.agent ? "agent" : null;
 }

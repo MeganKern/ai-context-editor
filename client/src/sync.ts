@@ -71,9 +71,12 @@ function handle(ev: StreamEvent) {
     const active = callbacks?.getActiveThreadId();
     if (active && ev.thread_ids.includes(active) && ev.seq > (callbacks?.getThreadSeq() ?? -1)) void fetchThread();
   } else if (ev.type === "run.output") {
-    if (ev.thread_id !== callbacks?.getActiveThreadId()) return;
-    // Something was missed (a gap in the offsets): the snapshot has all of it.
-    if (callbacks?.onLiveOutput(ev.run_id, ev.offset, ev.text, ev.event)) void fetchThread();
+    const activeThread = callbacks?.getActiveThreadId();
+    if (ev.thread_id !== null && ev.thread_id !== activeThread) return;
+    if (callbacks?.onLiveOutput(ev.run_id, ev.offset, ev.text, ev.event)) {
+      if (ev.thread_id) void fetchThread();
+      else void fetchWorkspace();
+    }
   }
 }
 

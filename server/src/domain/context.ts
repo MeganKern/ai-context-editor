@@ -27,6 +27,10 @@ export interface ContextInputs {
   everyReply: { note_id: string; excluded: boolean }[];
   notes: Map<string, { name: string; content: string; content_hash: string; tokens: number }>;
   summaries: SummaryInput[];
+  /** Global system message — shapes every reply, across all workspaces. */
+  systemMessage: { text: string; text_hash: string } | null;
+  /** Per-workspace agent preamble — standing instructions prepended to every agent's brief. */
+  agentPreamble: { text: string; text_hash: string } | null;
 }
 
 /** A summary and the cards it stands in for (each a message or another summary), in order. */
@@ -41,7 +45,8 @@ export type ManifestPart =
   | { kind: "item"; note_id: string; name: string; text_hash: string; with_message: string | null }
   | { kind: "card"; card_id: string; revision_id: string; role: Role }
   | { kind: "summary"; summary_id: string; text_hash: string }
-  | { kind: "text"; label: "task" | "instructions" | "feedback" | "previous_draft" | "excerpt" | "preamble"; text_hash: string };
+  | { kind: "text"; label: "task" | "instructions" | "feedback" | "previous_draft" | "excerpt" | "preamble" | "source_note"; text_hash: string }
+  | { kind: "system_message"; text_hash: string };
 
 export async function loadSummaries(db: Db, threadId: string): Promise<SummaryInput[]> {
   const { rows } = await db.query<{
@@ -171,10 +176,20 @@ export async function loadContextInputs(
     }
   }
 
+  const { rows: [sysMsg] } = await db.query<{ text: Buffer | null; text_hash: string | null }>(
+    `SELECT b.content AS text, sm.text_hash FROM system_message sm LEFT JOIN blobs b ON b.hash = sm.text_hash WHERE sm.id = 'global'`);
+  const systemMessage = sysMsg?.text_hash ? { text: sysMsg.text!.toString("utf-8"), text_hash: sysMsg.text_hash } : null;
+
+  const { rows: [pre] } = await db.query<{ text: Buffer | null; text_hash: string | null }>(
+    `SELECT b.content AS text, ap.text_hash FROM agent_preamble ap
+     LEFT JOIN blobs b ON b.hash = ap.text_hash
+     WHERE ap.id = (SELECT workspace_id FROM threads WHERE id = $1)`, [threadId]);
+  const agentPreamble = pre?.text_hash ? { text: pre.text!.toString("utf-8"), text_hash: pre.text_hash } : null;
+
   return {
     cards,
     directives: directives.map(d => ({ id: d.id, text: d.text.toString("utf-8"), text_hash: d.text_hash, excluded: d.excluded })),
-    everyReply, notes, summaries: await loadSummaries(db, threadId),
+    everyReply, notes, summaries: await loadSummaries(db, threadId), systemMessage, agentPreamble,
   };
 }
 
@@ -299,15 +314,21 @@ function mergeAdjacentRoles(raw: WalkResult["rawMessages"]): ContextPlan["messag
 }
 
 export interface ContextPlan extends WalkResult {
-  system: { kind: "directives" | "note"; ref: string | null; text: string; tokens: number }[];
+  system: { kind: "system_message" | "directives" | "note"; ref: string | null; text: string; tokens: number }[];
   messages: { role: "user" | "assistant"; content: string; placeholder?: boolean }[];
-  tokens: { total: number; parts: { kind: "directives" | "note" | "messages" | "summary"; ref: string | null; tokens: number }[] };
+  tokens: { total: number; parts: { kind: "system_message" | "directives" | "note" | "messages" | "summary"; ref: string | null; tokens: number }[] };
   error: string | null;
+  /** Per-workspace agent preamble (loaded from the context pipeline, not carried in run input). */
+  agentPreamble: { text: string; text_hash: string } | null;
 }
 
 export function planContext(inputs: ContextInputs, purpose: Purpose, opts?: { live?: Map<string, string> }): ContextPlan {
   const system: ContextPlan["system"] = [];
   const head: ManifestPart[] = [];
+  if (inputs.systemMessage) {
+    system.push({ kind: "system_message", ref: null, text: inputs.systemMessage.text, tokens: estimateTokens(inputs.systemMessage.text) });
+    head.push({ kind: "system_message", text_hash: inputs.systemMessage.text_hash });
+  }
   const pins = inputs.directives.filter(d => !d.excluded);
   if (pins.length > 0) {
     const text = "## Directives\n" + pins.map(d => `- ${d.text}`).join("\n");
@@ -341,7 +362,7 @@ export function planContext(inputs: ContextInputs, purpose: Purpose, opts?: { li
   for (const [sid, tokens] of summaryTokens) parts.push({ kind: "summary", ref: sid, tokens });
   const total = parts.reduce((sum, p) => sum + p.tokens, 0);
 
-  return { ...walked, manifest: [...head, ...walked.manifest], system, messages, tokens: { total, parts }, error };
+  return { ...walked, manifest: [...head, ...walked.manifest], system, messages, tokens: { total, parts }, error, agentPreamble: inputs.agentPreamble };
 }
 
 export function renderChat(plan: ContextPlan): { role: string; content: string }[] {
@@ -352,11 +373,11 @@ export function renderChat(plan: ContextPlan): { role: string; content: string }
 }
 
 /** The agent's brief: everything that would be sent with a reply, whole, then the task. */
-export function renderAgentPrompt(plan: ContextPlan, task: string, preamble?: string): { document: string; tokens: number } {
+export function renderAgentPrompt(plan: ContextPlan, task: string): { document: string; tokens: number } {
   const systemText = plan.system.map(s => s.text).join("\n\n");
   const conversation = plan.messages.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`);
   let doc = "";
-  if (preamble) doc += "# Standing instructions\n" + preamble + "\n\n---\n";
+  if (plan.agentPreamble) doc += "# Standing instructions\n" + plan.agentPreamble.text + "\n\n---\n";
   doc += "# Context from the conversation that dispatched you\n";
   if (systemText) doc += systemText + "\n\n";
   doc += "## Conversation so far (most recent last)\n";
