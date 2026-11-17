@@ -28,7 +28,7 @@ export function WorkspaceScreen() {
         <div className="picker-header">
           <h1 className="picker-brand">AI Context Editor</h1>
           <IconButton icon="gear" label="Model provider" className="picker-gear" help="sb.provider"
-            onClick={() => activity.open({ kind: "llm-setup", target: app.llm ? (app.llm.connection_id ? { connection: app.llm.connection_id } : { provider: app.llm.provider }) : null })} />
+            onClick={() => activity.open({ kind: "llm-setup", target: app.llm ? (app.llm.connection_id ? { connection: app.llm.connection_id } : { provider: app.llm.provider }) : { provider: "kilo" } })} />
         </div>
         <p className="picker-lede">A context editor for working with a model. Each thread shows exactly what the model is sent; you shape it by hand, and every reply keeps the prompt it was produced from.</p>
 

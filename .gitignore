@@ -8,7 +8,7 @@ dist-ssr/
 
 # Local database and workspace files
 .thedesk/
-data/
+/data/
 *.pglite
 
 # Environment
