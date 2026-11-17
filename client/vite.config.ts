@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   root: __dirname,
   plugins: [react()],
+  resolve: { extensions: [".ts", ".tsx", ".js", ".jsx", ".json"] },
   server: {
     port: 3711,
     strictPort: true,
