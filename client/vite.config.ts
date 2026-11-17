@@ -1,10 +1,28 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { dirname, resolve } from "path";
+import { existsSync } from "fs";
+import { defineConfig, type Plugin } from "vite";
+
+// Windows Vite 8 doesn't resolve .js imports to .ts source files reliably.
+function jsToTs(): Plugin {
+  return {
+    name: "js-to-ts",
+    enforce: "pre",
+    resolveId(source, importer) {
+      if (!source.endsWith(".js") || !importer || source.includes("node_modules")) return null;
+      const dir = dirname(importer);
+      for (const ext of [".ts", ".tsx"]) {
+        const candidate = resolve(dir, source.replace(/\.js$/, ext));
+        if (existsSync(candidate)) return candidate;
+      }
+      return null;
+    },
+  };
+}
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react()],
-  resolve: { extensions: [".ts", ".tsx", ".js", ".jsx", ".json"] },
+  plugins: [jsToTs(), react()],
   server: {
     port: 3711,
     strictPort: true,
