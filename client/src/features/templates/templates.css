@@ -1,0 +1,113 @@
+/* ── Templates: the steps in the middle, and the run panel beside them ── */
+
+/* The run panel: a page of sections. */
+.manifest { padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 4px; }
+.manifest-head { padding-bottom: 6px; }
+.manifest-title-row { display: flex; align-items: center; justify-content: space-between; }
+.manifest-title { font-size: 15px; font-weight: 600; }
+.manifest-lede { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+.mf-section { padding: 16px 0 6px; border-top: 1px solid var(--line); margin-top: 10px; }
+.mf-section-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.mf-section-head h3 { font-size: 13px; font-weight: 600; flex: 1; display: flex; align-items: baseline; gap: 8px; }
+.mf-meta { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; display: inline-flex; gap: 10px; }
+.mf-help { font-size: 12.5px; color: var(--text-3); line-height: 1.5; margin-bottom: 6px; }
+
+.var-fields { display: flex; flex-direction: column; gap: 10px; }
+.var-field { display: flex; flex-direction: column; gap: 4px; }
+.var-name { font-size: 12.5px; font-weight: 600; color: var(--text); text-transform: none; display: flex; gap: 6px; align-items: baseline; }
+.var-req { font-style: normal; font-weight: 500; font-size: 11.5px; color: var(--text-2); }
+.var-opt { font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--text-3); }
+.var-field input { font-size: 13px; height: 34px; }
+.run-auto-name { color: var(--text-2); }
+.run-auto-name.is-bad { color: var(--coral); }
+.run-go { margin: 14px 0 6px; }
+.run-blocked { font-size: 12.5px; color: var(--text-3); margin-top: 8px; text-align: center; }
+/* A run going: the app speaking, with an edge and no fill. */
+.run-live { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text); padding: 10px 12px; border-radius: 10px; background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+.run-live-actions { display: flex; gap: 6px; margin-top: 8px; }
+.run-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.run-item { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 8px 10px; border-radius: 9px; background: var(--raised); }
+.run-item:hover:not(:disabled) { background: var(--raised-2); }
+.run-item-top { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.run-item-n { font-weight: 600; }
+.run-item time { font-size: 12px; color: var(--text-3); }
+.run-item-go { width: 14px; height: 14px; color: var(--text-3); margin-right: -2px; }
+.run-item:hover .run-item-go { color: var(--text); }
+.run-item-vars { display: flex; flex-direction: column; gap: 1px; font-size: 12px; color: var(--text-2); }
+.run-item-vars b { font-weight: 500; color: var(--text-3); }
+.run-item-error { font-size: 12px; color: var(--coral); }
+.run-foot { margin-top: 10px; }
+
+/* ── The template itself, in the middle ───────────────────────────────────── */
+.tpl-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.tpl-inner { max-width: calc(var(--col) + 72px); margin: 0 auto; padding: 24px 32px 48px 32px; }
+.tpl-lede { font-size: 13.5px; color: var(--text-2); line-height: 1.55; max-width: 640px; }
+.tpl-lede code, .tpl-empty code { font-size: 12.5px; color: var(--text); background: var(--raised-2); padding: 1px 5px; border-radius: 4px; }
+.tpl-h2 { font-size: 14px; font-weight: 600; margin: 26px 0 10px; }
+.tpl-empty { font-size: 13.5px; color: var(--text-3); padding: 4px 0 12px; }
+/* The library items every run starts with: one row each, the same look as an item on a message. */
+.tpl-items { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.tpl-item {
+  display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 6px 4px 14px;
+  border-radius: 9px; background: var(--entry); border: 1px solid var(--line);
+}
+.tpl-item-icon { flex: none; width: 14px; height: 14px; color: var(--text-3); }
+.tpl-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-item-meta { flex: none; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tpl-item .icon-btn { flex: none; color: var(--text-3); }
+.tpl-item .icon-btn:hover { color: var(--text); }
+.tpl-items-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+.steps { list-style: none; display: flex; flex-direction: column; }
+.step, .step-add { display: grid; grid-template-columns: 32px 1fr; gap: 12px; position: relative; padding-bottom: 18px; }
+.step::before, .step-add::before {
+  content: ""; position: absolute; left: 15px; top: 28px; bottom: 0; width: 2px; background: var(--line-2); border-radius: 1px;
+}
+.step-add::before { display: none; }
+.step-num {
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 600;
+  background: var(--raised-2); color: var(--text); font-variant-numeric: tabular-nums;
+}
+.step-num.is-new { background: transparent; border: 2px dashed var(--line-2); color: var(--text-3); }
+.step-main { min-width: 0; padding-top: 3px; }
+.step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; min-height: 24px; }
+.step-kind { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; }
+.step-kind.kind-agent { color: var(--violet); }
+.step-kind .icon { width: 14px; height: 14px; }
+.step-kind-help { font-size: 12.5px; color: var(--text-3); }
+.step-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.step:hover .step-actions, .step-actions:focus-within, .step-actions:has(.is-open) { opacity: 1; }
+@media (hover: none) { .step-actions { opacity: 1; } }
+/* A step is written by you and becomes a message in each run: the same block (the kit's entry) as yours in a thread. */
+.step-text {
+  display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 15.5px; line-height: 1.65; color: #e1e5ea; padding: 12px 18px; border-color: transparent;
+}
+.step-text:hover { border-color: var(--line-2); }
+
+.step-outcome { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-3); }
+.step-outcome .icon { width: 13px; height: 13px; }
+.step-edit textarea, .step-add textarea { font-size: 15px; line-height: 1.55; resize: none; }
+.step-edit-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+/* A blank to fill in at run time: neutral, with the dashed underline of a form field. */
+.var-chip {
+  display: inline; font-family: var(--sans); font-size: .9em; font-weight: 600; color: var(--text);
+  background: var(--raised-3); border-radius: 4px; padding: 1px 6px; white-space: nowrap; box-shadow: inset 0 -1px 0 var(--text-3);
+}
+.var-chip.is-auto { color: var(--text-2); background: var(--raised-3); }
+.var-default { font-weight: 400; opacity: .8; }
+
+/* ── A template's page: branches taken from a run, under that run ──────────────────────── */
+.run-branches { list-style: none; display: flex; flex-direction: column; gap: 1px; margin-top: 2px; }
+.run-branch {
+  position: relative; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px;
+  padding: 4px 10px 4px calc(30px + 14px * var(--branch-depth, 1)); border-radius: 8px; font-size: 13px; color: var(--text-2); text-align: left;
+}
+.run-branch:hover { background: var(--row-hover); color: var(--text); }
+.run-branch.is-active { background: var(--raised-2); color: var(--text); }
+.run-branch .tree-icon { position: absolute; left: calc(10px + 14px * var(--branch-depth, 1)); top: 50%; margin-top: -7px; }
+.run-branch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-loose-head { margin: 10px 0 2px; }
+
+/* ── On a phone: less margin ── */
+@media (max-width: 760px) { .tpl-inner { padding: 20px 16px 40px; } }

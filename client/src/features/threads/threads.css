@@ -1,0 +1,78 @@
+/* ── Threads: the list, its folders and branches, and search ── */
+.sb-scroll { flex: 1; overflow-y: auto; padding: 8px 8px 12px; }
+.sb-label { font-size: 12px; font-weight: 500; color: var(--text-3); padding: 14px 8px 4px; }
+.sb-empty { font-size: 12.5px; color: var(--text-3); padding: 4px 8px 8px; line-height: 1.45; }
+.sb-empty.is-nested { padding-left: 14px; }
+.sb-empty-start { padding: 16px 8px; }
+.sb-drop { border-radius: 6px; margin-top: 6px; }
+.sb-drop.is-dragging { border: 1px dashed var(--line-2); color: var(--text-2); padding: 8px; }
+.sb-drop.is-drop, .folder.is-drop { background: var(--raised-2); box-shadow: inset 0 0 0 1px var(--edge-strong-2); }
+.folder { border-radius: 8px; margin-top: 2px; }
+
+.tree-row {
+  display: flex; align-items: center; width: 100%; min-height: 30px;
+  border-radius: 7px; color: var(--text-2); font-size: 13.5px; position: relative;
+}
+.tree-row:hover { background: var(--row-hover); color: var(--text); }
+.tree-row.is-active { background: var(--raised-2); color: var(--text); font-weight: 500; }
+.tree-row.is-active::before { content: ""; position: absolute; left: -8px; top: 7px; bottom: 7px; width: 3px; border-radius: 0 3px 3px 0; background: var(--text-2); }
+.sb-empty.is-nested.in-folder { padding-left: 32px; }
+.tree-icon { color: var(--text-3); width: 14px; height: 14px; }
+.tree-icon.is-template { color: var(--text-3); }
+.tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.thread-row { --indent: 14px; }
+.thread-row.is-nested { --indent: 32px; }
+.thread-row.is-branch { --indent: calc(14px + 14px * var(--branch-depth, 1)); }
+.thread-row.is-nested.is-branch { --indent: calc(32px + 14px * var(--branch-depth, 1)); }
+
+/* The button is the whole row: wherever the row lights up, a press opens the thread. The ⋯ sits
+   over its right end and shows on hover; the marks move over to make room for it. */
+.thread-row-btn {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 30px;
+  padding: 4px 8px 4px var(--indent); border-radius: 7px;
+  background: none; border: none; margin: 0; color: inherit; font: inherit; cursor: pointer; text-align: left;
+}
+.thread-row-more {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; opacity: 0; color: var(--text-3); transition: opacity .12s;
+}
+.thread-row:hover .thread-row-more,
+.thread-row-more:focus-visible,
+.thread-row-more.is-open { opacity: 1; }
+.thread-row:hover .thread-row-btn,
+.thread-row:has(.thread-row-more:focus-visible, .thread-row-more.is-open) .thread-row-btn { padding-right: 34px; }
+@media (hover: none) { .thread-row-more { opacity: 1; } .thread-row-btn { padding-right: 34px; } }
+.thread-row.is-renaming { padding: 4px 8px 4px var(--indent); }
+.folder-row { position: relative; }
+.folder-row .row-menu { position: absolute; right: 2px; top: 2px; }
+.folder-row:hover { background: transparent; }
+.folder-toggle {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 30px; padding: 4px 8px;
+  border-radius: 7px; color: var(--text-2); font-weight: 600; font-size: 13px;
+}
+.folder-toggle:hover { background: var(--row-hover); }
+.row-menu { width: 26px; height: 26px; opacity: 0; }
+.folder-row:hover .row-menu, .row-menu:focus-visible, .row-menu.is-open { opacity: 1; }
+@media (hover: none) { .row-menu { opacity: 1; } }
+/* While the folder's ⋯ shows, the marks at the end of its row move over to make room for it
+   instead of sitting under it. */
+.folder-row:hover .folder-toggle, .folder-row:has(.row-menu:focus-visible, .row-menu.is-open) .folder-toggle { padding-right: 36px; }
+@media (hover: none) { .folder-toggle { padding-right: 36px; } }
+.tree-form { display: flex; align-items: center; gap: 8px; padding: 3px 8px; }
+.tree-form input { height: 28px; padding: 4px 8px; font-size: 13px; color: var(--text); }
+.tree-form-rename { flex-wrap: wrap; row-gap: 6px; padding: 4px 8px 6px; }
+.tree-form-rename input { flex: 1 1 100%; }
+
+.search-results { padding-top: 2px; }
+.search-hit { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 8px; border-radius: 8px; }
+.search-hit:hover { background: var(--row-hover); }
+.search-hit-thread { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.search-hit-tpl { font-weight: 400; color: var(--text-3); }
+.search-hit-snippet { font-size: 12.5px; color: var(--text-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.search-hit-snippet mark { background: rgba(255, 255, 255, .1); color: var(--text); border-radius: 3px; padding: 0 2px; }
+.search-hit-also { padding: 0 8px 8px; margin-top: -4px; font-size: 12px; line-height: 1.5; color: var(--text-3); }
+.search-hit-also-link { color: var(--text-2); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.search-hit-also-link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+.tree-form-new { padding: 0 8px; }

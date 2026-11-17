@@ -1,0 +1,64 @@
+/* ── The box at the bottom: a message, or an agent's task ── */
+.composer { flex: none; max-width: calc(var(--col) + 80px); width: 100%; margin: 0 auto; padding: 4px 40px 16px; position: relative; }
+.composer-box {
+  position: relative; background: var(--raised); border: 1px solid var(--line-2); border-radius: 12px; padding: 6px 8px 8px;
+  transition: border-color .12s, box-shadow .12s;
+}
+.composer-box:focus-within { border-color: #7a8697; box-shadow: 0 0 0 3px rgba(255, 255, 255, .05); }
+.composer.is-agent .composer-box { border-color: var(--violet-line); }
+.composer.is-agent .composer-box:focus-within { border-color: rgba(178, 164, 247, .7); box-shadow: 0 0 0 3px rgba(178, 164, 247, .12); }
+.composer-modes { display: flex; align-items: center; gap: 8px; padding: 0 0 2px; }
+.composer-follow { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-2); min-width: 0; }
+.composer-follow em { color: var(--text); font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+.composer-input, .composer-input:focus {
+  display: block; width: 100%; resize: none; border: none; background: transparent; box-shadow: none;
+  padding: 6px 6px; font-size: 15px; line-height: 1.55; min-height: 52px; max-height: 320px;
+}
+.composer-bar { display: flex; align-items: center; gap: 6px; padding-top: 2px; }
+.composer-queue { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+/* Two ordinary commits, equal weight; each shows its key. */
+.btn-send { height: 32px; }
+.btn.btn-send:not(:disabled) { color: var(--text); }
+/* Start agent / Send to agent keep their dark ink on the violet. */
+.btn.btn-send.btn-agent-primary:not(:disabled) { color: var(--violet-ink); }
+.composer-foot { display: flex; align-items: center; gap: 8px; padding: 4px 0 0; min-height: 28px; }
+.composer-hint { font-size: 12px; color: var(--text-3); line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.composer-hint kbd { color: var(--text-2); }
+
+/* ── The agent's dials: violet, like everything of the agent's ── */
+.composer-modes .dial select { border-color: rgba(178, 164, 247, .25); }
+.composer-modes .dial select:focus { border-color: rgba(178, 164, 247, .7); }
+.agent-config { margin: 4px 6px 6px; font-size: 12.5px; line-height: 1.5; }
+.agent-config-row { display: flex; align-items: center; gap: 8px; }
+.agent-config-perm-group {
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+  background: rgba(178, 164, 247, .05); border: 1px solid rgba(178, 164, 247, .18);
+  border-radius: 7px; padding: 5px 10px;
+}
+.agent-config-perm-head { display: flex; align-items: center; gap: 4px; }
+.agent-config-perm-head .agent-config-perm { flex: 1; min-width: 0; }
+.agent-config-perm .dial-label { color: var(--violet); margin-right: 2px; }
+.agent-config-perm select { border-color: rgba(178, 164, 247, .35); padding-right: 22px; }
+.agent-config-perm select:focus { border-color: rgba(178, 164, 247, .7); }
+.agent-config-detail-toggle { padding: 2px; color: var(--text-3); transition: transform .15s ease; }
+.agent-config-detail-toggle .icon { width: 14px; height: 14px; }
+.agent-config-detail-toggle.is-open { transform: rotate(180deg); }
+.agent-config-cli { font-size: 11.5px; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
+.agent-config-flag { font-family: var(--mono); color: var(--text-2); font-size: 11px; }
+.agent-config-standing { margin-top: 8px; }
+.agent-config-standing .field-grow { border-color: var(--violet-line); }
+
+/* ── The system message, edited under the box ── */
+.sys-msg-toggle.is-open { color: var(--text); }
+.sys-msg-editor { padding: 6px 0 0; }
+
+/* ── On a phone: less margin, the bar wraps, the keys go ── */
+@media (max-width: 760px) {
+  .composer { padding-left: 16px; padding-right: 16px; }
+  .composer-bar { flex-wrap: wrap; row-gap: 6px; }
+  .composer-bar .spacer { display: none; }
+  .composer-bar .btn-send:first-of-type { margin-left: auto; }
+  .composer-bar .btn kbd { display: none; }
+  .composer-bar .btn { height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .agent-config-row { flex-direction: column; align-items: flex-start; }
+}

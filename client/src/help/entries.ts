@@ -1,0 +1,275 @@
+import { BEHAVIOUR as B, type BehaviourKey } from "../../../shared/behaviour.js";
+import { AGENT_EXTRAS, AGENT_PERMISSION_LABELS as P, AGENT_SWITCHED_OFF, list } from "../../../shared/agent.js";
+
+/**
+ * What Alt-click (⌥-click) says about the screen itself: marks, states, areas, and the controls
+ * that run no action. A control that runs an action isn't here — it names the action (data-help)
+ * and the help says what shared/behaviour.ts says. Each text stands on its own: whoever clicked
+ * has clicked nothing else, so it says what the thing is, what it does on the server and to the
+ * model, and what it doesn't do — in plain words, with no names from the code.
+ *
+ * An element names its entry with data-help="<key>"; a region with data-help-area="<key>", shown
+ * only when the click wasn't on a control of its own. One mechanism, so the help knows no class
+ * names and no on-screen copy. Every statement must be how the code behaves (client/src, server/src).
+ */
+
+export interface ScreenEntry { title: string; text: string }
+
+const SHARED_ITEMS = "There is one copy of each library item: editing it changes it for every thread that uses it, from each one's next reply on.";
+
+export const SCREEN = {
+  // ── Menu items that run no single action ────────────────────────────────────────────────
+  "menu.branches": { title: "Branches",
+    text: "Opens a list of every branch of this conversation, as a tree, with the card each was taken at. Each branch is a thread of its own with a copy of everything up to that card; nothing done in one reaches another, apart from library items, which all threads share. Choosing one opens it at that card. Nothing is sent to the model." },
+  "menu.hide-excluded": { title: "Show / hide excluded messages",
+    text: "Only changes what you see. Excluded messages are already left out of every reply; hiding them takes them off the screen so they don't take up space, and showing them brings them back as one-line cards. The choice is remembered in this browser and changes nothing on the server or in what the model gets." },
+  "menu.full-editor": { title: "Full editor",
+    text: `Opens the library item in a large editor where you can rewrite it, rename it, or delete it. ${SHARED_ITEMS} Replies already written keep what they were sent. Saving is explicit — nothing changes until you save.` },
+  "menu.versions": { title: "Versions",
+    text: "Opens this item's versions as a tree. The current version, at the top, is the one threads send; each past version sits under the one that replaced it. From there you can make a different version current — every thread using the old one switches to it from its next reply — add an older version under any card, change what a version was followed by, or take a version out of the tree. Opening it changes nothing by itself." },
+
+  // ── The left column ─────────────────────────────────────────────────────────────────────
+  "sb.workspace": { title: "Workspace",
+    text: "Switches between workspaces, or makes a new one. Each workspace has its own threads, folders, library and agent defaults, and none of them cross to another; the model provider and the system message are shared by all. Each also has a folder of its own on this computer where its agents start (hover the name to see it) — though agents aren't confined to it. Switching changes nothing on the server." },
+  "sb.provider": { title: "Model provider",
+    text: "Opens the choice of provider and model that write every reply, summary and template reply step, in every workspace. Choosing one here changes what every reply from now on is sent to and billed to; replies already written keep the model that wrote them. Agents aren't affected: they run through Claude Code on this computer with its own model settings." },
+  "sb.search": { title: "Search",
+    text: "Searches the text every card in this workspace shows now — in branches, in excluded messages and in the threads your templates' runs made too — so it finds things the model no longer sees. A text several cards show — a card and its copies in branches — comes up once, with the other threads it's in listed under it. The earlier texts in a card's history, and deleted messages, aren't searched. Nothing is sent to the model." },
+  "sb.search-hit": { title: "A search result",
+    text: "Opens the thread this text is in, scrolled to its card. Nothing is sent to the model." },
+  "sb.thread": { title: "A thread",
+    text: "Opens this thread. A thread is one conversation: its own messages and replies, plus the library items it has in use. Opening it sends nothing to the model; only asking for a reply, or starting an agent, does. Drag it onto a folder to file it there — the model never sees folders." },
+  "sb.folder-mark": { title: "Waiting inside",
+    text: "Something in this closed folder needs you, and the dot takes the colour of the most urgent: coral, something failed; amber, a summary is waiting for your review; white, a result finished that you haven't seen. Opening the folder shows which thread." },
+  "sb.failed": { title: "Something failed",
+    text: "A reply, an agent or a summary in this thread failed or was interrupted, and you haven't seen it yet. Opening the thread shows what and why: on the card it was writing, or — for a summary, or a reply written again that kept the text it had — in a notice above the message box, which stays until you dismiss it. On a template, this covers its runs' threads and their branches. Nothing retries by itself." },
+  "sb.review": { title: "A summary to review",
+    text: "A summary draft is waiting in this thread. Until you choose to use it, nothing changes in what the model gets; using it replaces the messages it covers with the summary, for good." },
+  "sb.new": { title: "New result",
+    text: "A reply, an agent's result or a template run finished in this thread while you weren't looking at it. Opening the thread clears the mark; the server records that you've seen it, so it clears in every browser." },
+  "sb.folder-working": { title: "Working inside",
+    text: "A reply, an agent or a template run is under way in a thread in this closed folder. It carries on whether the folder is open or closed, and whether this window is open or not." },
+  "sb.folder-open-thread": { title: "Your open thread is in here",
+    text: "The thread you're looking at is in this closed folder. Opening the folder shows it in place." },
+  "sb.working": { title: "Working",
+    text: "A reply, an agent or a template run is under way in this thread. It runs on the server, so it carries on if you switch threads or close this window." },
+  "sb.branch": { title: "A branch",
+    text: "A thread forked from the one it's listed under — or, if that one was deleted, from the nearest one still there — at some card, with a copy of everything up to that card. It's a thread of its own: its own messages, its own replies, its own library items in use. Nothing done in one reaches the other, apart from library items, which every thread shares. It moves with that conversation when you file it. Opening it sends nothing to the model." },
+  "sb.template": { title: "A template",
+    text: "A repeatable procedure: a list of steps, and the library items every run starts with. Each run makes a fresh thread and plays the steps into it; those threads, and any branches taken from them, are listed on the template's own page rather than here. Opening the template sends nothing to the model." },
+  "sb.folder": { title: "A folder",
+    text: "Groups threads in your list; the model never sees folders or their names. Click to open or close it. Closed, it shows a dot in the colour of the most urgent thing inside that needs you, a spinner while something inside is working, and a ring when the thread you have open is inside. Drag a thread onto it to file the thread there." },
+  "dl.branches": { title: "Branches",
+    text: "Every branch of this conversation, as a tree: each one was taken from the thread above it at the card quoted, with a copy of everything up to that card. Each is a thread of its own; nothing done in one reaches another, apart from library items, which all threads share. Choosing one opens it at that card." },
+
+  // ── Workspaces and the provider ─────────────────────────────────────────────────────────
+  "ws.item": { title: "A workspace",
+    text: "Switches to this workspace: its threads, folders and library, which no other workspace can see. Switching sends nothing to the model." },
+  "llm.about": { title: "About this provider",
+    text: "A short note on who runs this provider and what it offers, with links to their pages. Reading it changes nothing." },
+  "llm.models": { title: "The models it offers",
+    text: "The models this provider reports having right now, read from the provider when you open this. Picking one sets which model writes every reply from now on, in every workspace; what each costs is between you and the provider." },
+  "llm.key": { title: "API key",
+    text: "A key this provider gave you. It's kept, per provider, in this computer's database, never shown again, and sent only to that provider with each request. Leave it empty to keep the key already saved." },
+  "llm.load": { title: "Load models",
+    text: "Asks the provider, with the key you typed, which models it offers, and lists them to pick from. Nothing is saved until you choose a model." },
+  "dl.llm": { title: "Model provider setup",
+    text: "Pick where every reply goes and which of that provider's models writes it, for every workspace. A key is kept per provider in this computer's database and never shown again; the model list is read from the provider when it offers one. Nothing is sent anywhere until you choose a model." },
+
+  // ── The message box ─────────────────────────────────────────────────────────────────────
+  "cb.message-mode": { title: "Message",
+    text: "Switches the box to writing a message. Adding a message is free; asking for a reply sends the whole thread to the model. Switching changes nothing by itself." },
+  "cb.agent-mode": { title: "Agent task",
+    text: "Switches the box to briefing an agent. Instead of a written reply, an agent — Claude Code on this computer — acts in the workspace's folder, with the permission level you choose, using the thread as its briefing; its result becomes a card in the thread. Switching changes nothing by itself; nothing runs until you start it." },
+  "cb.agent-model": { title: "Model for this agent",
+    text: "Which model Claude Code runs this agent with, passed to it as its model option — one of its own names, so it means the latest model of that line. Default leaves the choice to Claude Code's own settings on this computer. This is only for agents: replies go to the model provider's model." },
+  "cb.agent-effort": { title: "Effort for this agent",
+    text: "How much Claude Code lets this agent think before acting, passed to it as its effort option. Default leaves it to Claude Code's own settings on this computer. Higher effort tends to take longer and cost more. This is only for agents." },
+  "cb.agent-cli": { title: "The exact command",
+    text: "Shows the options Claude Code will be started with for this agent: the permission level as the arguments it is, and the model and effort if set. Reading it changes nothing." },
+  "cb.insert-note": { title: "Insert note",
+    text: "Puts a reference to a library item into your message, shown as a pill. When the thread is sent, the model gets the item's name and full text in the last message that mentions it, and just its name where it was mentioned earlier; an item that's been retired is left out. An item mentioned this way that's also sent with every reply is sent only where it's mentioned, not again at the top. The item isn't added to the thread's list of items by this." },
+  "cb.queue": { title: "Waits its turn",
+    text: "A card above is still being written, and a reply is written from every finished card above it, so yours will start once that card is done and be written from its finished text." },
+  "cb.follow": { title: "Following up", text: B.agent_follow_up.help },
+  "cb.task": { title: "Agent task",
+    text: "What the agent is to do, in your words. Nothing runs until you start it; then it goes to the agent first, ahead of the thread. What you type here is kept with the thread on the server until you send it." },
+  "cb.input": { title: "Message box",
+    text: "Write a message here. Adding it is free: nothing goes to the model until you ask for a reply, which sends the whole thread. What you type is kept with the thread on the server, so it's still here in another browser or after a reload." },
+  "cb.sys-toggle": { title: "System message",
+    text: "Shows the one system message, to read or edit. It goes at the very top of every prompt, for every reply in every thread of every workspace, and into every agent's brief under its own heading. Opening it changes nothing; saving it changes every reply from then on." },
+  "cb.standing": { title: "Standing instructions",
+    text: "Shows the standing instructions this agent gets right after its task, before the rest of its brief. Changing them here changes only this agent; saving them as the workspace default changes what the agent bar starts with and what template agent steps use, for this workspace only." },
+  "cb.agent-perm": { title: "Permissions",
+    text: `What the agent may do on this computer, for the whole run. ${P.locked}: it can read files and search but change nothing. ${P.standard}: it can also create and change files. ${P.full}: it can run any command and change anything, with no confirmation asked, and nothing confines it to the workspace folder. The level is fixed when the agent starts and can't change mid-run.` },
+  "cb.agent-area": { title: "Agent configuration",
+    text: "What the agent runs with: its permission level, standing instructions, model and effort. These apply to the agent you're about to start; saving them as the default makes them the starting point for later agents in this workspace." },
+
+  // ── Cards ───────────────────────────────────────────────────────────────────────────────
+  "msg.history": { title: "History",
+    text: "Opens every text this card has had, newest first — yours, a model's or an agent's, finished or not — and for each one a run wrote, the exact prompt it was written from. A copy made by a branch or a duplicate says where it came from. Nothing in it can be changed, and opening it sends nothing to the model." },
+  "msg.history-read": { title: "Read an earlier text",
+    text: "Shows that earlier text in full, here, for reading. It isn't restored and nothing is sent; to make it the card's text again, copy it into an edit." },
+  "msg.prompt": { title: "Prompt / Brief",
+    text: "Opens a record of exactly what the model or agent was sent for this text — the prompt for a reply, the brief for an agent — and which model, kept from the moment it started. It never changes, even if you edit the thread afterwards, so you can always see what it was answering." },
+  "msg.edited": { title: "Edited by you",
+    text: "You changed what the model or agent wrote, and your text is what's sent from now on. What it wrote is in the card's history, with the prompt it was written from." },
+  "msg.steps": { title: "Show its steps",
+    text: "Shows everything the agent did, in order — what it said, each tool it used and what came back — read from Claude Code's own output and kept on the server so you can check its work later. A tool that reported a failure is marked. The steps aren't sent to the model with later replies; only the result is." },
+  "msg.changes": { title: "What it changed",
+    text: "Lists every file in the workspace folder that changed while the agent ran, found by comparing the folder from before it started with after it ended — whether its tools, its commands or anything else changed them. Outside the folder, only the paths its editing tools named are known; its commands may have changed more. Files inside .git folders aren't listed. If the server stopped suddenly during the run there was no after to compare, and the card says so." },
+  "msg.failed": { title: "Failed",
+    text: "The run on this card ended with an error, and the card has whatever was written before it did — for an agent, its steps and whatever it had said. Later replies get the card as it is. Nothing retries by itself: to have a reply written again, edit the message above it and save with a new reply; to try an agent again, give it the task again from the message box. The failed attempt stays in the card's history." },
+  "msg.cutoff": { title: "Cut off",
+    text: "The model stopped at the most a reply may write, so this ends part-way. Later replies get it as it is. To have it written again, edit the message above it and save with a new reply; asking for less at once, or splitting the question, keeps it under the limit." },
+  "msg.stopped": { title: "Stopped",
+    text: "A reply that was stopped or interrupted keeps what it had written, and later replies get it, unfinished as it is. A stopped agent keeps its steps and whatever it had said, marked as stopped. A server restart interrupts whatever was running; replies and summaries still waiting their turn start again by themselves, but an agent waiting to start doesn't. A copy taken while a card was being written has what it had then." },
+  "msg.branch-point": { title: "Branches from here",
+    text: "Branches were taken at this card. Each started with a copy of everything up to here, as it was then — library items too — and each is a thread of its own, so any of them may have been edited since. The arrows swap to the next one, keeping this point where it is on screen. Only library items are shared between them." },
+  "msg.row": { title: "A message on one line",
+    text: "Shrunk to one line for one of two reasons. Folded: still sent to the model in full; only your view is smaller. Not sent: excluded, so the model doesn't get it with any reply until you include it again. Click it to read it in full." },
+  "msg.collapse": { title: "Collapse",
+    text: "Shrinks this excluded message back to one line on your screen. It's still excluded: the model doesn't get it either way, and nothing changes on the server." },
+  "ins.gap": { title: "Add here, or branch from here",
+    text: "Add a message here puts a message of yours between these two cards; the cards below stay where they are and their replies aren't redone, and later replies get it in this position. Branch from here makes a thread of its own with a copy of everything up to this point; this thread stays as it is. Neither sends anything to the model by itself." },
+  "ins.form": { title: "Adding a message here",
+    text: "Writes a message into this spot in the conversation. Adding it alone sends nothing; adding it with a reply asks the model for an answer written from what's above this point only, placed right under it. The cards below stay as they are." },
+  "msg.edit": { title: "Editing a card",
+    text: "Rewrites this card's text. Saving keeps the text it had in the card's history and sends your text from the next reply on; replies already written keep what they were sent. Saving with a new reply also has the model write the reply below again. Nothing changes until you save." },
+  "msg.note-pill": { title: "A library item in the message",
+    text: "A reference to a library item, written into the message. The model gets the item's name and full text in the last message that mentions it, and just its name where it was mentioned earlier; a retired item is left out. Click it to read the item." },
+
+  // ── Summaries ───────────────────────────────────────────────────────────────────────────
+  "msg.summary": { title: "A summary card",
+    text: "A summary the model wrote, standing in for messages that were removed from the thread when you accepted it; those messages can't be brought back, though the card's history records which they were. Later replies get this text in their place. It can be edited, excluded, folded or deleted like any message." },
+  "sum.review": { title: "A summary to review",
+    text: "A draft summary, shown where it would go. Nothing changes in what the model gets until you choose Use this summary; then it becomes a card here and the messages it covers are removed from the thread, for good. Edit it to send your own words instead, revise it to have the model write it again, or discard it to keep the messages as they are." },
+  "sum.pick": { title: "Picking messages to summarize",
+    text: "Click each card to include — messages, replies, agents' results, sent or not, in any order; click one again to leave it out. The summary is written from exactly those, in the order they appear, and comes back as a draft to review before anything changes. Escape or Cancel leaves without summarizing." },
+
+  // ── The bar above the box, and runs ─────────────────────────────────────────────────────
+  "att.failed": { title: "Failed elsewhere",
+    text: "Something failed where no card shows it: a reply written again — the card kept the text it had — or a summary. Nothing retries by itself. Show it jumps to the card; Dismiss only clears this notice, in every browser." },
+  "att.bar": { title: "Needs your attention",
+    text: "Failures no card shows — a reply written again that failed, or a summary that failed — gathered here so nothing slips by. Each stays until you dismiss it, in every browser." },
+  "run.origin": { title: "A run's thread",
+    text: "This thread was made by a template run; its number is its place among the template's runs. While the run is going you can work here too: each next step is added at the end, written from the thread as it is then; Stop run ends it where it is and keeps what's here. The arrows open the previous or next run's thread. Its messages are its own, so changes here don't touch the template and template changes don't reach it — except library items, which they share." },
+  "run.new-since": { title: "New since you were here",
+    text: "What's below finished while you weren't looking at this thread — results you hadn't had on screen. Having them on screen now is what clears the mark in the thread list, in every browser." },
+
+  // ── Templates ───────────────────────────────────────────────────────────────────────────
+  "tp.start": { title: "Every run starts with",
+    text: `The library items every run's thread begins with: each is sent with every reply in each run's thread, after the system message and before the conversation. Add an item picks one from the workspace library; the × takes one out. ${SHARED_ITEMS} Changes here apply to runs started from now on; runs already going keep what they started with.` },
+  "panel.switch": { title: "What the panel shows",
+    text: "Beside a template the right panel is one of two things: the run controls — the blanks to fill in, the Run button and past runs — or the workspace library, where the box beside each item adds it to or removes it from the template. Switching between them changes nothing by itself." },
+  "tp.kind": { title: "What this step does",
+    text: "Message with reply posts the step's text, then asks the model for a reply and waits for it before the next step. Message without reply posts the text and moves straight on. Agent task starts an agent on this computer with the step's text as its task, with the workspace's saved standing instructions and permission level, and waits for it to finish. Each reply and each agent is one model request." },
+  "tp.blank": { title: "A blank",
+    text: "Filled in each time the template runs. {{name}} must be filled in before a run starts; {{name|default}} falls back to its default; @ blanks such as {{@date_long}} fill themselves in. Use one form per name — the first use decides. Only step text is filled in, and a run won't start with a blank left empty." },
+  "tp.step": { title: "A step", text: B.update_step.help },
+  "tp.blanks": { title: "Fill in the blanks",
+    text: "Values for this run's blanks. They're copied into the steps when the run starts, so changing them afterwards doesn't change a run already going. Each template keeps the values you typed while the page is open." },
+  "tp.auto": { title: "Filled in for you",
+    text: "Blanks that fill themselves in when the run starts — the date, for instance — so you don't type them. One that isn't a known kind stops the run from starting." },
+  "tp.live": { title: "Running",
+    text: "A run of this template is going: its steps are being played into its own thread, one after another. Stopping ends the run where it is and keeps what's already in that thread." },
+  "tp.past": { title: "Past runs",
+    text: "Every run of this template, newest first, each with the thread it made. Opening one shows that thread; it's a thread of its own, so working in it doesn't change the template. Branches taken from a run's thread are listed under it." },
+  "tp.run": { title: "A past run",
+    text: "Opens the thread this run made. It's a thread of its own: working in it doesn't change the template, and template changes don't reach it — except library items, which they share." },
+  "tp.branch": { title: "A branch of a run",
+    text: "A thread forked from a run's thread, or from one of its branches, with a copy of everything up to the card it was taken at. It lives here on the template's page with that run, and is a thread of its own." },
+
+  // ── The library panel ───────────────────────────────────────────────────────────────────
+  "cx.alert": { title: "Context limit reached",
+    text: "This thread sends more than the model can read at once — by an estimate, corrected by the last reply's real count when there is one — so a reply would fail. Nothing is cut or summarized for you: exclude messages, remove library items, or summarize older messages to get under the limit." },
+  "cx.item-detail-warn": { title: "Used in other threads",
+    text: "This item is in use in other threads too, and there is one copy of it: saving changes it in all of them, from each one's next reply on. To change the text for this thread alone, make a new item with the new text and use that one here instead." },
+  "cx.item-detail": { title: "Reading an item",
+    text: `The item's text, where you can read and edit it. ${B.update_note.help} Unsaved edits wait here while you look elsewhere, and nothing changes until you save.` },
+  "cx.tag": { title: "Note on this row",
+    text: `"Copy": a separate library item made as a copy of another, with the same name; editing it doesn't touch the other. "Unsaved": you've started editing its text and haven't saved, so threads still send the old text. "Retired": out of circulation — sent to no thread until it's reactivated.` },
+  "cx.lib-filter": { title: "Library filter",
+    text: "Which items are listed: all of them; those in this thread, in the order they're sent; those available to add; or the retired ones, which no thread sends. Filtering changes nothing — the box beside each item is what adds it to or removes it from the thread." },
+  "cx.lib-search": { title: "Find in the library",
+    text: "Finds items by name, and by the words inside their text; a match inside shows where. Searching changes nothing and sends nothing to the model." },
+  "cx.lib-item": { title: "A library item",
+    text: `Reference text kept once in this workspace's library. Check the box to send it with every reply in this thread, from the next one on; uncheck to stop. Click the name to read or edit it. Drag it onto a folder to file it. ${SHARED_ITEMS}` },
+  "cx.lib-folder": { title: "A library folder",
+    text: "Groups library items in the panel; the model never sees folders or their names. Drop an item onto it to move the item there — the item stays in every thread using it. Removing the folder moves its items to the top level and deletes none of them." },
+  "comb.bar": { title: "Combining items", text: B.combine_notes.help },
+  "comb.review": { title: "Review combined item",
+    text: "The model wrote this from the items you selected. Accept keeps it as a new library item; edit changes the text first; discard throws it away. The items it was written from aren't changed or removed either way, and nothing is in the library until you accept." },
+  "comb.accept": { title: "Accept",
+    text: "Keeps the combined text as a new library item, available to any thread in this workspace. The items it was written from stay exactly as they were — nothing is merged or deleted. It isn't added to any thread by this." },
+  "cx.library": { title: "Library",
+    text: `The workspace's reference texts. Each item checked into a thread is sent with every reply there, under its name as a heading, after the system message and before the conversation. ${SHARED_ITEMS}` },
+
+  // ── The exact prompt ────────────────────────────────────────────────────────────────────
+  "ip.this": { title: "As it was sent",
+    text: "What the model or agent was sent for this card, recorded the moment it started, with the model it went to. Later edits to the thread don't change it, so it always shows what the answer was written from." },
+  "ip.reply": { title: "Next reply",
+    text: "What the next reply from here would be sent: the system message, the library items in use, then every message that's sent, in order — as the model would get it right now." },
+  "ip.agent": { title: "Next agent",
+    text: `What an agent started now would be given: its task first, then the standing instructions, then the system message, the library items in use, and every message that's sent — nothing left out to fit. Claude Code adds its own built-in instructions and whatever your own setup has (${AGENT_EXTRAS}), none of which can be shown here, and starts with ${list(AGENT_SWITCHED_OFF)} switched off.` },
+  "ip.placeholder": { title: "A placeholder",
+    text: "A card above is still being written. The run waits for it and is sent its finished text; here it shows what's written so far." },
+  "ip.sources": { title: "What's sent now",
+    text: "Everything that goes to the model with the next reply, in the order it reads it: the system message, the library items in use, then the conversation. Switching something off here excludes it exactly as excluding it where it lives would, from the next reply on." },
+  "ip.size": { title: "Size",
+    text: "How long this is, as an estimate — or the real count a past reply reported. Models measure text in tokens, about four characters each, and each model has a limit; a prompt over it fails." },
+  "ip.dialog": { title: "The exact prompt",
+    text: "Word for word what the model gets, or got: the system message, the library items in use, then the conversation. Reading it changes nothing." },
+
+  // ── Versions ────────────────────────────────────────────────────────────────────────────
+  "vm.node": { title: "A version",
+    text: "One version of this library item: its name, how many threads send it, and its size. The card at the top, marked current, is the one threads send; every other card is a past version that no thread sends, sitting under the version that replaced it. Click a card for its actions. Drag a card onto another to record that it was followed by that one — only how the history is drawn; nothing is sent to the model." },
+  "vm.add": { title: "Add an older version",
+    text: "Pick a library item to attach under this version as one it was followed by. Only items that aren't already in a version tree are listed. The picked item becomes a past version: out of the active library and out of every thread it was in, with the tree's current version sent instead from the next reply on." },
+  "ver.dialog": { title: "Versions",
+    text: "This item's versions as a tree. The current version at the top is the one threads send; each past version sits under the one that replaced it, beside the others that were, and no thread sends it. Click a version to make it current, take it out of the tree, or open it; drag one onto another to change what it was followed by; the + on a version adds an older one under it. Nothing here sends anything to the model." },
+
+  // ── Dialogs and notices ─────────────────────────────────────────────────────────────────
+  "dl.editor": { title: "Library editor",
+    text: `A library item with room to write, rename and delete. ${B.update_note.help} ${B["update_note:name"].help}` },
+  "dl.note": { title: "A library item",
+    text: "The item's text, as every thread that uses it sends it. Reading it changes nothing." },
+  "dl.close": { title: "Close",
+    text: "Closes this. Nothing is saved or sent by closing; whatever you already did stays done." },
+  "dl.toast": { title: "Notice",
+    text: "A short notice of what just happened. Where there's an obvious next step, such as opening a copy you just made, its button is here. Nothing here undoes anything." },
+  "dl.error": { title: "The server said no",
+    text: "The last thing you asked for wasn't done, and this is why. Nothing changed. It goes away by itself in a moment, or when you dismiss it." },
+
+  // ── Narrow screens ──────────────────────────────────────────────────────────────────────
+  "nb.threads": { title: "Show threads",
+    text: "Slides the thread list in from the left. On a narrow window it's hidden to leave room for the conversation; it's the same list, and nothing else changes." },
+  "nb.panel": { title: "Show the panel",
+    text: "Slides in the panel that sits beside the conversation on a wider window: the library beside a thread, or the run controls beside a template. It's the same panel; nothing else changes." },
+
+  // ── Any menu button that has nothing more specific ──────────────────────────────────────
+  "menu.trigger": { title: "Menu",
+    text: "Opens a menu of actions. Opening it changes nothing; each item says what it does when you hold the key and click it." },
+
+  // ── Whole areas, when the click wasn't on a control ─────────────────────────────────────
+  "area.user": { title: "Your message",
+    text: "A message of yours. It's sent with every reply, in its place in the thread, unless you exclude it or a summary in use stands in for it. Editing it keeps what it said before in its history; replies already written keep what they were sent." },
+  "area.reply": { title: "A reply",
+    text: "What the model wrote, from the thread as it stood then; the exact prompt is recorded with it. Later replies get it like any other message, so a mistake in it carries forward — edit it, write it again, or exclude it if it's wrong." },
+  "area.agent": { title: "An agent's result",
+    text: "What an agent reported back after working on this computer. Later replies get this report, headed with its task — not the agent's step-by-step work, which is kept on the card. Whatever it changed on your computer stays changed." },
+  "area.convo": { title: "The conversation",
+    text: "What the model gets with each reply, in this order — after the system message and the library items — except excluded messages, cards with nothing in them, and the messages a summary in use stands in for. Branches aren't sent: each is a thread of its own." },
+  "area.composer": { title: "The message box",
+    text: "Adding a message is free. Only asking for a reply, or starting an agent, sends anything to the model — and a reply sends the whole thread, every time." },
+  "area.context": { title: "Library",
+    text: "The library items in this thread. Everything checked here goes to the model with every reply, before the conversation, in this order. There is one copy of each item, shared by every thread that uses it." },
+  "area.template": { title: "Template",
+    text: "A repeatable procedure. Each run makes a new thread of its own and plays these steps into it. Editing the steps never changes runs already made; library items are shared with them, so editing an item's text does reach them." },
+  "area.sidebar": { title: "Threads",
+    text: "Your threads and folders in this workspace. Marks beside them show what needs you: something failed, a summary to review, or a new result. Nothing here sends anything to the model." },
+} satisfies Record<string, ScreenEntry>;
+
+export type ScreenHelpKey = keyof typeof SCREEN;
+/** What a control may name as its help: an action it runs, or a thing on the screen. */
+export type HelpKey = BehaviourKey | ScreenHelpKey;

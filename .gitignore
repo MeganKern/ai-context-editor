@@ -1,0 +1,30 @@
+# Dependencies — matches the dir or the local symlink to the website's node_modules
+node_modules
+
+# Builds
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Local database and workspace files
+.thedesk/
+data/
+*.pglite
+
+# Environment
+.env
+.env.local
+
+# Test output
+test-results/
+playwright-report/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea

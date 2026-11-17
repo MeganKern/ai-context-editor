@@ -1,0 +1,64 @@
+/* ── The shell: three columns — the thread list, the middle, the panel beside it ── */
+.app {
+  display: grid; height: 100vh;
+  grid-template-columns: var(--sidebar-w, 264px) minmax(0, var(--main-fr, 70fr)) minmax(300px, var(--panel-fr, 30fr));
+}
+.app.is-resizing { cursor: col-resize; user-select: none; }
+.main { min-width: 0; height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.panel { position: relative; height: 100vh; min-width: 0; background: var(--bg-panel); border-left: 1px solid var(--line); }
+.panel-scroll { height: 100%; overflow-y: auto; }
+.panel-body { height: 100%; }
+/* Beside a template the panel is one of two things; the switch at its top says which. */
+.panel-template { height: 100%; display: flex; flex-direction: column; }
+.panel-switch { padding: 14px 20px 0; flex: none; }
+.panel-template .panel-scroll { flex: 1; min-height: 0; height: auto; }
+.panel-fill { flex: 1; min-height: 0; }
+.panel-resize { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 6; }
+.panel-resize:hover, .is-resizing .panel-resize { background: linear-gradient(to right, transparent 3px, #8592a3 3px 5px, transparent 5px); }
+/* On a narrow screen the panel is a drawer, and this closes it; it sits over the panel's top corner. */
+.panel-close { position: absolute; top: 8px; right: 8px; z-index: 3; }
+/* A page being replaced stays on screen, not live, until its replacement is read; it dims only when that takes long. */
+.sidebar, .convo, .tpl, .panel-template { transition: opacity .15s ease; }
+.is-pending { opacity: .55; transition-delay: .3s; }
+
+/* ── The left column ── */
+.sidebar {
+  background: var(--bg-side); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; height: 100vh; min-width: 0;
+  position: relative;
+}
+/* The help button sits at the foot of the window, so the list keeps a strip free for it. */
+.sidebar::after { content: ""; flex: none; height: 48px; }
+.sidebar-resize { position: absolute; right: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 6; }
+.sidebar-resize:hover, .is-resizing .sidebar-resize { background: linear-gradient(to left, transparent 3px, #8592a3 3px 5px, transparent 5px); }
+.sb-top { padding: 22px 16px 20px; display: flex; flex-direction: column; gap: 6px; }
+.sb-top .sb-search { margin-top: 46px; }
+
+/* ── Before a thread exists ── */
+.draft-chat { display: flex; flex-direction: column; }
+.draft-spacer { flex: 1; }
+
+/* ── Narrow screens ──
+   The side columns become drawers, and a bar at the top of the middle opens them. These rules come
+   last so they win over the columns' own rules above. Under 1180px the panel is a drawer; under
+   760px the thread list is one too. */
+.narrow-bar, .panel-close, .panel-scrim, .nav-toggle, .sidebar-scrim { display: none; }
+@media (max-width: 1180px) {
+  .app { grid-template-columns: var(--sidebar-w, 264px) minmax(0, 1fr); }
+  .narrow-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 10px 10px; min-height: 48px; border-bottom: 1px solid var(--line); flex: none; }
+  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw); z-index: 40; box-shadow: var(--shadow); }
+  .panel:not(.is-open) { display: none; }
+  .panel-resize { display: none; }
+  .panel-scrim { display: block; position: fixed; inset: 0; background: rgba(4, 6, 9, .45); z-index: 39; }
+  .panel-close { display: inline-flex; }
+  .panel-switch { padding-right: 52px; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 86vw); z-index: 45; transform: translateX(-102%); transition: transform .18s ease-out; box-shadow: var(--shadow); }
+  .sidebar-resize { display: none; }
+  .app.has-drawer .sidebar { transform: none; }
+  .sidebar-scrim { display: block; position: fixed; inset: 0; background: rgba(4, 6, 9, .5); z-index: 44; }
+  .nav-toggle { display: inline-flex; }
+  .panel-toggle-label { display: none; }
+}

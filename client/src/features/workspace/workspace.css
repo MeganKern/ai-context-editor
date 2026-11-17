@@ -1,0 +1,35 @@
+/* ── Switching workspaces ── */
+.ws-switch {
+  display: flex; align-items: center; gap: 8px; padding: 4px 8px; margin: 0 -2px; border-radius: 8px;
+  font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -.02em;
+  max-width: 100%; align-self: flex-start;
+}
+.ws-switch:hover, .ws-switch.is-open { background: var(--raised); }
+.ws-switch .ws-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-switch .icon { color: var(--text-3); width: 16px; height: 16px; }
+
+/* ── The workspace screen: open one, or make the first ── */
+/* ── Workspace picker ─────────────────────────────────────────────────────── */
+.picker-screen { height: 100vh; overflow-y: auto; display: flex; background: var(--bg); }
+.picker-card { margin: auto; width: min(560px, 100%); padding: 48px 24px; }
+.picker-brand { font-family: var(--serif); font-size: 40px; font-weight: 600; letter-spacing: -.01em; }
+.picker-lede { font-size: 15px; color: var(--text-2); line-height: 1.55; margin: 8px 0 32px; max-width: 480px; }
+.picker-h2 { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-bottom: 10px; }
+.ws-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ws-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); color: var(--text-3); }
+.ws-item:hover { background: var(--raised-2); border-color: var(--line-2); color: var(--text-2); }
+.ws-item-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-item-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.ws-item-path { font-size: 12.5px; color: var(--text-3); }
+.ws-item-path code { font-size: 12px; color: var(--text-2); }
+.picker-header { display: flex; align-items: center; justify-content: space-between; }
+.picker-gear { padding: 6px; color: var(--text-3); }
+.picker-gear:hover { color: var(--text); }
+.ws-new { margin-top: 14px; }
+.ws-create { margin-top: 22px; }
+.ws-create-label { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 8px; }
+.ws-create-row { display: flex; gap: 8px; }
+.ws-create-row input { height: 36px; font-size: 14px; }
+.ws-create-row .btn { height: 36px; }
+.ws-create-note { font-size: 12.5px; color: var(--text-3); margin-top: 8px; line-height: 1.5; }
+.ws-create-note code { font-size: 12px; color: var(--text-2); }

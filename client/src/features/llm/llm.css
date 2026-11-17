@@ -1,0 +1,32 @@
+/* ── The model provider: the switcher in the left column, and setting one up ── */
+.sb-provider {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; height: 38px; padding: 0 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer;
+  border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.sb-provider:hover, .sb-provider.is-open { color: var(--text); border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.1); }
+.sb-provider .icon { width: 14px; height: 14px; flex: none; opacity: .6; }
+
+.llm-about { padding: 4px 20px 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); }
+.llm-about p { margin: 0 0 10px; }
+.llm-about strong { color: var(--text); font-weight: 600; }
+.llm-about-links { display: flex; gap: 16px; margin-top: 12px; }
+.llm-about-links a { color: var(--link); font-size: 13px; text-decoration: none; }
+.llm-about-links a:hover { text-decoration: underline; }
+
+/* The models it offers: a compact list in a box; the picked one is white, with a tick. */
+.llm-models { border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: var(--surface-sunk); }
+.llm-models .picker-list { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; }
+.llm-models .picker-item { display: flex; align-items: baseline; gap: 8px; padding: 7px 8px; border-radius: 6px; font-size: 13px; }
+.llm-models .picker-item > .icon { align-self: center; color: var(--text); }
+.llm-model-name { flex: 1; color: var(--text-2); font-weight: 500; }
+.llm-model-name.is-picked { color: var(--text); font-weight: 600; }
+.llm-model-meta { color: var(--text-3); font-size: 12px; }
+
+.dialog-llm { width: min(480px, 90vw); }
+.llm-key-row { display: flex; gap: 6px; }
+.llm-key-row input { flex: 1; }
+.llm-note { font-size: 13px; color: var(--text-2); }
+.llm-type-toggle { align-self: flex-start; font-size: 12px; }

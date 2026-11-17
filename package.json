@@ -1,0 +1,25 @@
+{
+  "name": "ai-context-editor",
+  "version": "0.1.0",
+  "description": "A context editor for working with AI models — craft, organize, and send exactly what the model sees.",
+  "author": "Megan Kern",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "server": "npm run start -w server",
+    "client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "check": "npm run check -w server && npx tsc -b client"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3"
+  }
+}

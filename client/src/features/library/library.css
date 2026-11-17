@@ -1,0 +1,219 @@
+/* ── The library panel: items, folders, combining, versions; and the full editor ── */
+
+/* The panel: the library, its title, filter and search always in view, the list scrolling under them. */
+.ctxp { height: 100%; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.ctxp-budget-alert { margin: 8px 20px 0; }
+
+/* Thread membership checkbox */
+.ctxp-thread-check { margin: 3px 3px 0 -4px; }
+.ctxp-library { flex: 1 1 0; min-height: 150px; overflow-y: auto; padding: 0 22px 28px; background: var(--bg-side); }
+.ctxp-library-top {
+  position: sticky; top: 0; z-index: 2; background: var(--bg-side);
+  padding: 22px 0 28px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.ctxp-library-top .ctxp-section-head { margin-bottom: 0; }
+/* The limit reached: said as a fact when it's so; what to do about it is yours. */
+.ctxp-alert {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(232, 182, 95, .08); box-shadow: inset 0 0 0 1px rgba(232, 182, 95, .22);
+}
+.ctxp-alert > .icon { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--amber); }
+.ctxp-alert p { flex: 1; font-size: 12.5px; line-height: 1.45; color: #ecd6ad; }
+
+.ctxp-section-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; min-height: 28px; }
+.ctxp-section-head h3 { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+.ctxp-library-top .ctxp-section-head h3 { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -.02em; }
+.ctxp-empty { font-size: 12.5px; color: var(--text-3); line-height: 1.5; padding: 6px 0 8px; }
+
+/* Rows: a switch (on is a quiet tick), the text, and on hover the menu over the end of the row.
+   A row you can move shows a grip in the margin. */
+.ctxp-list { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.ctxp-row { position: relative; margin: 0 -8px; padding: 2px 4px 2px 8px; border-radius: 8px; }
+.ctxp-row:hover { background: var(--row-hover); }
+.ctxp-row.is-open { background: var(--row-open); }
+.ctxp-row-line { position: relative; display: flex; align-items: flex-start; min-height: 28px; }
+.ctxp-row .check { margin: 3px 3px 0 -4px; }
+
+.ctxp-row-text {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 4px 0; border-radius: 4px;
+  font-size: 13px; line-height: 1.5; color: var(--text); text-align: left; overflow-wrap: anywhere;
+}
+.ctxp-row-text > .icon { flex: none; width: 13px; height: 13px; color: var(--text-3); }
+button.ctxp-row-text:hover:not(:disabled) { color: #fff; }
+button.ctxp-row-text:disabled { cursor: default; }
+.ctxp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxp-row-text > .ctxp-caret { width: 11px; height: 11px; margin-left: -3px; opacity: 0; transition: opacity .12s; }
+.ctxp-row:hover .ctxp-caret, .ctxp-row.is-open .ctxp-caret, .ctxp-row-text:focus-visible .ctxp-caret { opacity: 1; }
+
+.ctxp-tag { flex: none; font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.ctxp-tag.is-unsaved { color: var(--amber); }
+.ctxp-tag.is-retired { color: var(--text-3); opacity: .7; }
+.ctxp-row.is-retired > .ctxp-row-line { opacity: .55; }
+.ctxp-row.is-retired:hover > .ctxp-row-line { opacity: .8; }
+
+.ctxp-discard { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-left: 6px; font-size: 12.5px; color: var(--text); }
+.ctxp-discard > span { margin-right: 2px; color: var(--amber); }   /* about unsaved typing, like the editor's */
+.ctxp-row-actions {
+  position: absolute; top: 2px; right: 0; display: inline-flex; align-items: center; opacity: 0; transition: opacity .12s;
+  pointer-events: none; border-radius: 6px;
+}
+.ctxp-row:hover .ctxp-row-actions, .ctxp-row-actions:focus-within, .ctxp-row-actions:has(.is-open) { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .ctxp-row-actions { position: static; opacity: 1; pointer-events: auto; background: none; box-shadow: none; flex: none; } }
+.ctxp-row .act { height: 24px; padding: 0 6px; font-size: 12px; }
+.ctxp-row .act-more { width: 26px; padding: 0; justify-content: center; }
+
+.ctxp-row.is-draggable > .ctxp-row-line { cursor: grab; }
+.ctxp-row.is-draggable > .ctxp-row-line:active { cursor: grabbing; }
+.ctxp-row.is-draggable:hover::before {
+  content: ""; position: absolute; left: -10px; top: 9px; width: 6px; height: 11px; pointer-events: none;
+  background-image: radial-gradient(circle, #96a0ad 1.1px, transparent 1.4px); background-size: 4px 4px;
+}
+
+/* A row that just landed, or you were taken to, lights for a moment. */
+.ctxp-row.is-flash, .vm-node.is-flash { animation: ctxp-flash 1.6s ease-out; }
+@keyframes ctxp-flash { 0%, 35% { background: rgba(255, 255, 255, .09); box-shadow: 0 0 0 1px rgba(255, 255, 255, .12); } 100% { background: transparent; box-shadow: none; } }
+
+.ctxp-form-keys { font-size: 11.5px; color: var(--text-3); margin-left: 4px; white-space: nowrap; }
+.ctxp-more-btn { height: 28px; padding: 0 7px; margin: 4px 0 0 -7px; font-size: 12.5px; color: var(--text-2); }
+.ctxp-more-btn .icon { width: 14px; height: 14px; }
+
+/* An item opened in place: its text, and what's next. */
+.ctxp-detail { padding: 4px 0 12px 22px; }
+.ctxp-lib .ctxp-detail { padding-left: 20px; }
+.ctxp-detail-text {
+  max-height: 220px; overflow-y: auto; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line);
+  font-size: 12.5px; line-height: 1.55; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; cursor: text;
+}
+.ctxp-detail-text.is-loading, .ctxp-detail-text em { color: var(--text-3); font-style: normal; }
+.ctxp-detail-warn { margin-top: 6px; font-size: 11.5px; line-height: 1.4; color: var(--amber); }
+.ctxp-detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: 6px 0 0 -6px; }
+.ctxp-detail-actions .act { height: 24px; padding: 0 6px; font-size: 12px; }
+.ctxp-detail-actions .act .icon { width: 13px; height: 13px; }
+.ctxp-detail-actions .btn:first-child { margin-left: 6px; }
+
+/* ── Folder ──────────────────────────────────────────────────── */
+.ctxp-folder { margin-top: 2px; }
+.ctxp-folder:first-child { margin-top: 2px; }
+.ctxp-row.ctxp-folder:hover,
+.ctxp-row.ctxp-folder.is-open { background: transparent; }
+.ctxp-folder > .ctxp-folder-line { cursor: default; }
+.ctxp-folder > .ctxp-row-line { min-height: 28px; padding: 0; }
+.ctxp-folder > .ctxp-row-line > .ctxp-row-text {
+  gap: 4px; align-items: center; padding: 3px 4px 3px 0; margin-left: -4px;
+  font-size: 13px; font-weight: 500; color: var(--text);
+}
+.ctxp-folder > .ctxp-row-line > button.ctxp-row-text:hover { color: #fff; }
+/* Chevron — sized to match checkboxes, vertically centered over them */
+.ctxp-folder .ctxp-caret {
+  width: 18px; height: 18px; flex-shrink: 0;
+  opacity: .8; stroke-width: 2;
+  transition: opacity .12s;
+}
+.ctxp-folder.is-drop-target > .ctxp-folder-line {
+  background: rgba(255,255,255,.08); border-radius: 6px;
+}
+/* Nested children — indent only */
+.ctxp-nested {
+  list-style: none; padding: 2px 0 4px 18px; margin: 0;
+}
+
+/* Combine selection mode */
+.ctxp-combine-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0 6px;
+  font-size: 12.5px; color: var(--text-2);
+}
+.ctxp-combine-count { flex: 1; min-width: 0; }
+.ctxp-combine-bar-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.ctxp-combine-step { font-weight: 600; font-size: 12.5px; color: var(--text); }
+.ctxp-combine-bar-row .spacer { flex: 1; }
+.ctxp-combine-bar .field-grow { width: 100%; margin-top: 6px; }
+.ctxp-combine-name { width: 100%; font-size: 12.5px; margin-bottom: 6px; }
+
+/* Combine review — a decision waiting on you, amber like a summary's */
+.ctxp-combine-review { margin: 8px 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--entry); box-shadow: inset 0 0 0 1.5px var(--amber-line); }
+.ctxp-combine-review-head { margin-bottom: 6px; }
+.ctxp-combine-review-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--amber); }
+.ctxp-combine-review-title .icon { color: var(--coral); width: 14px; height: 14px; }
+.ctxp-combine-review-error { font-size: 12.5px; line-height: 1.45; color: var(--coral); margin-bottom: 8px; }
+.ctxp-combine-review-name { margin-bottom: 8px; }
+.ctxp-combine-review-label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); }
+.ctxp-combine-review-label strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxp-combine-rename { display: flex; align-items: center; gap: 6px; }
+.ctxp-combine-rename input { flex: 1; min-width: 0; padding: 4px 8px; font-size: 12.5px; border-radius: 5px; }
+.ctxp-combine-review-text { font-size: 12.5px; line-height: 1.45; color: var(--text-2); max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--bg); }
+.ctxp-combine-review-text.is-streaming { opacity: .8; }
+
+/* Picked to combine: the same neutral ring a picked card wears in the conversation. */
+.ctxp-row.is-selected > .ctxp-row-line { box-shadow: 0 0 0 2px var(--text); border-radius: 6px; }
+
+.ctxp-snippet {
+  padding: 0 0 6px 20px; font-size: 12px; line-height: 1.45; color: var(--text-3); overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.ctxp-snippet mark { background: rgba(255, 255, 255, .14); color: var(--text); border-radius: 3px; padding: 0 1px; }
+
+.ctxp-confirm { padding: 6px 0 8px; }
+.ctxp-confirm p { font-size: 12.5px; line-height: 1.45; color: var(--text); margin-bottom: 8px; }
+
+/* Searchable folder picker, in the row */
+.ctxp-picker { padding: 6px 0 4px; }
+.ctxp-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ctxp-picker-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+
+/* ── Versions: the current version at the top, each past version under the one that replaced it ── */
+.dialog.version-map-dialog { width: min(800px, 92vw); max-width: 92vw; }
+/* The canvas: a dotted field, no frame of its own. */
+.vm-canvas {
+  position: relative; overflow: auto; margin: 0 20px 6px; min-height: 160px; max-height: min(520px, 60vh); border-radius: 12px;
+  background-color: var(--bg); background-image: radial-gradient(rgba(255, 255, 255, .09) 1px, transparent 1.3px); background-size: 18px 18px;
+  box-shadow: inset 0 0 0 1px var(--line); display: flex; align-items: flex-start; justify-content: center;
+}
+.vm-canvas.is-dragging { cursor: grabbing; }
+.vm-frame { position: relative; flex: none; }
+.vm-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.vm-edges { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.vm-edge { fill: none; stroke: rgba(255, 255, 255, .3); stroke-width: 1.5; stroke-linecap: round; }
+/* A version: a card with its name and where it's used. The current one is lighter, edged in
+   white, its name in white: the one in use, at the top. */
+.vm-node {
+  position: absolute; box-sizing: border-box; padding: 9px 14px 0; border-radius: 12px; background: #20262f; border: 1px solid #4a5463;
+  color: var(--text-2); cursor: grab; user-select: none; touch-action: none; overflow: visible;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35); transition: border-color .12s, box-shadow .12s, opacity .12s;
+}
+.vm-node:hover { border-color: var(--edge-strong-2); }
+.vm-node:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.vm-node.is-current { background: #2a313d; border-color: #e8ebf0; cursor: pointer; }
+.vm-node.is-current .vm-node-name > span:first-child { color: #fff; }
+.vm-node.is-selected { border-color: #e8ebf0; box-shadow: 0 0 0 3px rgba(232, 235, 240, .18), 0 2px 8px rgba(0, 0, 0, .35); }
+.vm-node.is-dragging { pointer-events: none; opacity: .92; z-index: 5; box-shadow: 0 14px 32px rgba(0, 0, 0, .6); transition: none; }
+.vm-node.is-not-target { opacity: .35; }
+.vm-node.is-target { border-color: #e8ebf0; box-shadow: 0 0 0 3px rgba(232, 235, 240, .22); }
+.vm-node-name { display: flex; align-items: baseline; gap: 10px; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.vm-node-name > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vm-node-current { flex: none; font-size: 11px; font-weight: 500; letter-spacing: .2px; color: var(--text-2); }
+.vm-node-meta { margin-top: 2px; font-size: 11.5px; line-height: 1.3; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The handle: a small + straddling the card's bottom edge at the centre, always there. Older
+   versions hang from it and their lines end at it; the card is tall enough that it covers no text. */
+.vm-node-add {
+  position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%); width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  background: var(--raised-3); border: 1px solid var(--edge-strong-2); color: var(--text); cursor: pointer; z-index: 2; transition: border-color .12s, background .12s, color .12s;
+}
+.vm-node-add .icon { width: 10px; height: 10px; }
+.vm-node-add:hover, .vm-node-add:focus-visible, .vm-node-add.is-open { border-color: #e8ebf0; background: #3a4350; color: #fff; }
+.vm-node.is-current .vm-node-add { border-color: #8592a3; }
+.vm-add { padding: 6px; }
+.vm-foot { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; }
+.vm-foot-name { min-width: 0; font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vm-foot-hint { font-size: 12.5px; line-height: 1.45; color: var(--text-3); }
+
+.note-editor { width: min(820px, 100%); height: 80vh; }
+.note-editor-title { display: flex; align-items: center; gap: 8px; flex: 1; color: var(--text-3); }
+.note-name-input { font-size: 17px; font-weight: 600; color: var(--text); background: transparent; border-color: transparent; padding: 4px 8px; }
+.note-name-input:hover { background: var(--raised-2); }
+.note-name-input:focus { background: var(--raised); }
+.note-editor-sub { padding: 0 20px 10px 52px; margin: 0; }
+.note-body {
+  flex: 1; margin: 0 20px 14px; width: auto; resize: none; font-size: 14.5px; line-height: 1.6; padding: 14px 16px; border-radius: 10px;
+  background: var(--bg); font-family: var(--sans);
+}

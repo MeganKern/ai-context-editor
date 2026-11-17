@@ -1,0 +1,463 @@
+/* ═════════════════════════════════════════════════════════════════════════════
+   AI Context Editor — the kit: tokens and the pieces every screen is made of.
+   The thread is the prompt; its text is the loudest thing on screen. Normal states carry
+   no mark at all: sent, on, finished, running. Everything not sent has one look (dim, with
+   a "Not sent" label). Colour is spent only where it means something:
+     mint   = the one button that commits a form, once it can
+     amber  = a decision with consequences is waiting on you
+     coral  = failed, or destructive
+     violet = an agent (it acts on files)
+   Location ("here it is") is a neutral glow. Teaching lives in tooltips and first use.
+   Every custom property used anywhere is declared here; a feature's stylesheet adds only
+   classes its own components carry, and the kit's selectors name only classes the kit owns.
+   ═════════════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+
+:root {
+  color-scheme: dark;
+  --bg: #111419;
+  --bg-side: #0c0f13;
+  --bg-panel: #161b21;
+  --raised: #232a33;
+  /* Every entry in the conversation is a block of this one shade, whoever wrote it — no shade ranks
+     one kind above another. Who wrote it is a small tick at its top-left, in one of these hues
+     (the same lightness, so none stands out): you, the model, an agent. */
+  --entry: #222932;
+  --src-you: #6f8fae;
+  --src-model: #8f887a;
+  --src-agent: #9289c4;
+  --raised-2: #2c3440;
+  --raised-3: #363f4c;
+  /* What floats over the page (menus, dialogs, toasts), and what sinks below it (code, logs). */
+  --surface-float: #1c222b;
+  --surface-sunk: #0f1216;
+  --line: #353e4a;
+  --line-2: #465060;
+  --text: #ebeef2;
+  --text-2: #cdd2da;
+  --text-3: #adb5c1;
+  /* The band behind the row under the pointer, the same in every list: a light wash over whatever
+     the list sits on, so it shows the same step on every ground. An opened row is a calmer wash, so
+     the pointer still stands out over it. */
+  --row-hover: rgba(255, 255, 255, .1);
+  --row-open: rgba(255, 255, 255, .06);
+  --edge-strong: #6f7a89;
+  --edge-strong-2: #6a7584;
+  /* A field with focus: a lighter edge and a soft ring, the same everywhere. */
+  --edge-focus: #8b97a8;
+  --ring-focus: rgba(143, 208, 255, .13);
+  --mint: #7fd1a8;
+  --mint-hi: #9be0bd;
+  --mint-ink: #0b241a;
+  --mint-soft: rgba(127, 209, 168, .13);
+  --amber: #e8b65f;
+  --amber-ink: #2b1f08;
+  --amber-soft: rgba(232, 182, 95, .13);
+  --amber-line: rgba(232, 182, 95, .55);
+  --coral: #f08a8a;
+  --coral-ink: #2e0f0f;
+  --coral-soft: rgba(240, 138, 138, .12);
+  --violet: #b2a4f7;
+  --violet-ink: #1c1638;
+  --violet-soft: rgba(178, 164, 247, .13);
+  --violet-line: rgba(178, 164, 247, .45);
+  --focus: #8fd0ff;
+  --shadow: 0 12px 32px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --serif: "Source Serif 4 Variable", "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --link: #6bb8ff;                       /* a link out of the app */
+  --col: 760px;            /* conversation column width */
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; text-align: inherit; }
+button:disabled { cursor: default; }
+code, pre { font-family: var(--mono); }
+/* A key, as the buttons show it: in the text's own face. */
+kbd { font-family: var(--sans); }
+::selection { background: rgba(160, 180, 210, .32); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+.spacer { flex: 1 1 auto; }
+.icon { flex: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.16); background-clip: padding-box; border: 3px solid transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 8px;
+  background: var(--raised); border: 1px solid var(--line-2);
+  color: var(--text); font-size: 13.5px; font-weight: 500; white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.btn:hover:not(:disabled) { background: var(--raised-3); border-color: var(--edge-strong-2); }
+.btn:disabled { opacity: .6; }
+.btn .icon { width: 15px; height: 15px; }
+.btn kbd { font-size: 11.5px; font-weight: 500; opacity: .75; margin-left: 2px; }
+.btn-primary { background: var(--mint); border-color: transparent; color: var(--mint-ink); font-weight: 600; }
+.btn-primary:hover:not(:disabled) { background: var(--mint-hi); border-color: transparent; }
+/* A commit button only takes its colour once there is something to commit. */
+.btn-primary:disabled, .btn-agent-primary:disabled { opacity: 1; background: var(--raised-2); color: var(--text-3); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover:not(:disabled) { background: var(--raised); border-color: transparent; color: var(--text); }
+.btn-danger { background: var(--coral); border-color: transparent; color: var(--coral-ink); font-weight: 600; }
+.btn-danger:hover:not(:disabled) { background: #f5a3a3; border-color: transparent; }
+.btn.is-danger, .btn-ghost.is-danger { color: var(--coral); }
+.btn-agent-primary { background: var(--violet); border-color: transparent; color: var(--violet-ink); font-weight: 600; }
+.btn-agent-primary:hover:not(:disabled) { background: #c6bbfa; border-color: transparent; }
+/* The quiet action at the top of a list — new thread, new item, choose a provider. */
+.btn-quiet { height: 34px; gap: 8px; font-size: 13px; color: var(--text-2); background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .15); }
+.btn-quiet:hover:not(:disabled) { color: var(--text); border-color: rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .1); }
+.btn-quiet .icon { width: 14px; height: 14px; opacity: .6; }
+.btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 7px; }
+.btn-xs { height: 24px; padding: 0 8px; font-size: 12px; border-radius: 6px; gap: 4px; }
+.btn-xs .icon { width: 13px; height: 13px; }
+.btn-lg { height: 40px; padding: 0 18px; font-size: 14.5px; border-radius: 10px; }
+.btn-block { width: 100%; }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 7px; color: var(--text-2); flex: none;
+  transition: background .12s, color .12s;
+}
+.icon-btn:hover:not(:disabled), .icon-btn.is-open { background: var(--raised-2); color: var(--text); }
+.icon-btn:disabled { opacity: .5; }
+
+.link { color: var(--text-2); text-decoration: underline; text-decoration-color: #66717f; text-underline-offset: 2px; font-size: inherit; }
+.link:hover { color: var(--text); text-decoration-color: var(--text-3); }
+
+/* ── Inputs ───────────────────────────────────────────────────────────────── */
+/* :where() keeps these at zero specificity so any class can override them. Focus is said once. */
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  background: var(--raised); border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 7px 10px; color: var(--text); outline: none; width: 100%;
+  transition: border-color .12s, box-shadow .12s;
+}
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus {
+  border-color: var(--edge-focus); box-shadow: 0 0 0 3px var(--ring-focus);
+}
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus-visible { outline: none; }
+textarea { resize: vertical; line-height: 1.5; }
+::placeholder { color: var(--text-3); opacity: 1; }
+
+/* A box to search in: the field is the box. */
+.search {
+  display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; height: 34px; border-radius: 8px;
+  background: var(--raised); border: 1px solid transparent; color: var(--text-3);
+}
+.search:focus-within { border-color: var(--edge-focus); box-shadow: 0 0 0 3px var(--ring-focus); }
+.search > .icon { width: 14px; height: 14px; }
+.search input, .search input:focus { width: 100%; background: transparent; border: none; padding: 0; height: 100%; font-size: 13px; box-shadow: none; }
+.search .icon-btn { width: 26px; height: 26px; }
+.search .icon-btn .icon { width: 13px; height: 13px; }
+
+/* Checkbox: on is the normal state, so it is a quiet tick, not a filled block. Off is an empty box. */
+.check { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; cursor: pointer; }
+.check input {
+  appearance: none; -webkit-appearance: none; width: 15px; height: 15px; border-radius: 4px;
+  border: 1.5px solid var(--edge-strong); background: transparent; cursor: pointer; display: grid; place-content: center;
+  transition: background .1s, border-color .1s;
+}
+.check input::after {
+  content: ""; width: 8px; height: 4px; border-left: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2);
+  transform: rotate(-45deg) translate(1px, -1px); opacity: 0;
+}
+.check input:checked { border-color: #8590a0; background: transparent; }
+.check input:checked::after { opacity: 1; }
+.check input:hover:not(:disabled) { border-color: #a9b3c0; }
+.check input:disabled { opacity: .5; cursor: default; }
+
+/* A labelled choice in a row: "Model ▾". */
+.dial { display: flex; align-items: center; gap: 4px; position: relative; cursor: pointer; }
+.dial-label { color: var(--text-3); font-weight: 500; font-size: 12px; white-space: nowrap; }
+.dial select {
+  appearance: none; -webkit-appearance: none; width: auto; background: transparent; border: 1px solid var(--line-2);
+  border-radius: 6px; padding: 3px 20px 3px 8px; color: var(--text); font-size: 12px; cursor: pointer;
+}
+.dial select:focus { box-shadow: none; }
+.dial > .icon { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-3); width: 13px; height: 13px; }
+
+/* ── Tags and pills ───────────────────────────────────────────────────────── */
+/* Tags state a fact; they are never buttons. Actions next to them are separate buttons. */
+.tag {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; color: var(--text-2); background: var(--raised);
+}
+.tag .icon { width: 13px; height: 13px; }
+
+/* A run's status in a word. */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; background: var(--raised); color: var(--text-2); white-space: nowrap;
+}
+.status-pill.status-done { background: transparent; color: var(--text-3); padding: 0 2px; font-weight: 500; }
+.status-pill.status-failed, .status-pill.status-timed_out, .status-pill.status-interrupted { background: var(--coral-soft); color: var(--coral); }
+.status-pill.status-running, .status-pill.status-queued { background: var(--raised-2); color: var(--text); }
+.status-pill.status-stopped { background: transparent; color: var(--text-3); padding: 0 2px; font-weight: 500; }
+
+/* On a closed folder: "the thread you have open is in here" is a hollow ring, so it can't be
+   mistaken for the filled dot that means something inside is waiting for you. */
+.live-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--text-2); flex: none; }
+@keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+.callout {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px;
+  font-size: 13px; line-height: 1.45; text-decoration: none; background: var(--raised); color: var(--text-2);
+}
+.callout .icon { margin-top: 1px; }
+a.callout:hover { filter: brightness(1.12); }
+
+/* ── Marks ────────────────────────────────────────────────────────────────── */
+/* One mark per row, only when there's something for you. */
+.row-mark { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-right: 2px; }
+.row-mark.is-failed { background: var(--coral); }
+.row-mark.is-review { background: var(--amber); }
+.row-mark.is-unseen { background: var(--text); }
+.spinner {
+  width: 12px; height: 12px; border-radius: 50%; flex: none;
+  border: 2px solid rgba(255, 255, 255, .2); border-top-color: var(--text); animation: spin 1.1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* The one mark for "working" (or waiting its turn), wherever it appears; words say which. */
+.spinner.is-inline { margin-right: 8px; }
+
+/* ── Not sent: one look everywhere ─────────────────────────────────────── */
+.notsent-label {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 7px; margin-left: 6px; border-radius: 5px;
+  border: 1px solid var(--line-2); font-size: 11.5px; font-weight: 500; color: var(--text-3); white-space: nowrap; vertical-align: 1px;
+}
+
+/* ── Small actions on cards and rows ───────────────────────────────────── */
+.act {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 7px; border-radius: 6px;
+  font-size: 12.5px; font-weight: 500; color: var(--text-3); white-space: nowrap;
+}
+.act .icon { width: 14px; height: 14px; color: var(--text-3); }
+.act:hover:not(:disabled), .act.is-open { background: var(--raised); color: var(--text); }
+.act:hover:not(:disabled) .icon { color: var(--text-2); }
+.act:disabled { opacity: .4; }
+.act.is-danger, .act.is-danger .icon { color: var(--coral); }
+.act.is-danger:hover:not(:disabled) { background: var(--coral-soft); }
+.act-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ── Fields edited in place ─────────────────────────────────────────────── */
+/* A text typed where it's shown: a name on one line, or a body that grows with its text. */
+.field-grow { display: block; resize: none; font-size: 12.5px; line-height: 1.55; padding: 7px 9px; background: var(--bg); }
+.field-grow.is-body { min-height: 84px; font-size: 13.5px; padding: 9px 11px; }
+.field-name { flex: 1; min-width: 0; height: 26px; margin: 1px 4px 1px 0; padding: 2px 7px; font-size: 13px; }
+.inline-form { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 6px 0 8px; }
+.inline-form input { height: 34px; font-size: 13px; padding: 5px 10px; border-radius: 8px; }
+.inline-form-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.4; }
+/* The row of buttons under a field: inside a form it's spaced by the form; under a body it keeps its own gap. */
+.inline-form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.inline-form-actions.is-under { margin-top: 8px; }
+.inline-form-actions.is-end { justify-content: flex-end; }
+
+/* ── Picking one of a few: the one segmented control ───────────────────── */
+.seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line-2); }
+.seg-opt { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 6px; font-size: 12.5px; color: var(--text-2); cursor: pointer; white-space: nowrap; }
+.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-opt:hover { color: var(--text); background: var(--raised-2); }
+.seg-opt.is-on { background: var(--raised-3); color: var(--text); font-weight: 500; }
+.seg-opt.is-agent.is-on { background: var(--violet-soft); color: var(--violet); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.seg-opt .icon { width: 13px; height: 13px; }
+/* Bare: the options alone, no box (the modes at the top of the message box). */
+.seg.is-plain { padding: 0; gap: 2px; background: none; border: none; }
+.seg.is-plain .seg-opt { color: var(--text-3); font-weight: 500; }
+.seg.is-plain .seg-opt:hover { color: var(--text); }
+.seg.is-plain .seg-opt.is-on { color: var(--text); }
+/* Stretched across its row, the options sharing it (a panel's filter or switch). */
+.seg.is-block { display: flex; }
+.seg.is-block .seg-opt { flex: 1; justify-content: center; height: 30px; }
+
+/* ── An entry in the conversation, and its tick ─────────────────────────── */
+/* Every entry is one block of the one shade; who wrote it is the tick at its top-left, in the
+   hue of its source. The block's own padding and metrics are each entry's; the ground and the
+   tick are the kit's. */
+.entry { position: relative; border-radius: 10px; background: var(--entry); border: 1px solid var(--line); }
+.entry::before {
+  content: ""; position: absolute; left: 0; top: 19px; width: 3px; height: 16px; border-radius: 0 3px 3px 0;
+  background: var(--src, transparent); pointer-events: none;
+}
+.src-you { --src: var(--src-you); }
+.src-model { --src: var(--src-model); }
+.src-agent { --src: var(--src-agent); }
+
+/* ── Layers: menus by their button, dialogs in the middle ──────────────── */
+.menu-trigger { display: inline-flex; align-items: center; gap: 5px; }
+.layer { outline: none; }
+.layer-anchored {
+  position: fixed; z-index: 100; background: var(--surface-float); border: 1px solid var(--line-2); border-radius: 11px;
+  box-shadow: var(--shadow); padding: 4px; overflow-y: auto; animation: pop .1s ease-out;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+.menu-row { display: flex; align-items: center; }
+.menu-row .menu-item { flex: 1; min-width: 0; width: auto; }
+.menu-item-trailing { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); }
+.menu-item-trailing:hover { color: var(--text); background: var(--row-hover); }
+.menu-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 7px; font-size: 13px; color: var(--text); }
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--row-hover); outline: none; }
+.menu-item:disabled { opacity: .4; }
+.menu-item.is-danger { color: var(--coral); }
+.menu-item-icon { width: 16px; height: 18px; display: grid; place-items: center; color: var(--text-3); flex: none; }
+.menu-item.is-danger .menu-item-icon { color: var(--coral); }
+.menu-item-icon .icon { width: 15px; height: 15px; }
+.menu-item[aria-checked="true"] .menu-item-icon { color: var(--text); }
+.menu-item-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.menu-item-label { line-height: 18px; }
+.menu-item-hint { font-size: 11.5px; color: var(--text-3); line-height: 1.35; }
+.menu-sep { height: 1px; background: var(--line-2); margin: 4px 6px; }
+.menu-heading { font-size: 11.5px; font-weight: 500; color: var(--text-3); padding: 6px 8px 3px; overflow-wrap: anywhere; }
+
+.btn-ghost.btn-xs:not(.is-danger) { color: var(--text-3); }
+.btn-ghost.btn-xs:hover { color: var(--text); }
+.layer-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(5, 7, 10, .62); display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px 16px; animation: fade .12s ease-out; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.dialog {
+  background: var(--surface-float); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: var(--shadow);
+  width: min(560px, 100%); max-height: 84vh; display: flex; flex-direction: column; overflow: hidden;
+}
+.dialog-head { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; padding: 16px 16px 4px 20px; }
+.dialog-head-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.dialog-title { font-size: 16px; font-weight: 600; line-height: 1.35; }
+.dialog-sub { font-size: 13px; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+.dialog-text { font-size: 13.5px; color: var(--text-2); padding: 6px 20px 0; line-height: 1.55; }
+.dialog-compact { width: min(440px, 100%); padding-bottom: 0; }
+.dialog-compact .dialog-title { padding: 18px 20px 0; }
+.dialog-compact .dialog-sub { padding: 0 20px; }
+.dialog-actions, .dialog-foot { display: flex; align-items: center; gap: 8px; padding: 16px 20px 18px; }
+.dialog-actions { justify-content: flex-end; }
+.dialog-foot { border-top: 1px solid var(--line); padding-top: 12px; padding-bottom: 14px; }
+.dialog-hint { font-size: 12.5px; color: var(--text-3); }
+.dialog-hint.is-warn { color: var(--amber); }
+/* The question of a keep-or-throw-away choice: white, or amber (is-warn) when it's about unsaved typing. */
+.dialog-hint.is-ask { font-size: 13px; color: var(--text); }
+.dialog-fields { display: flex; flex-direction: column; gap: 14px; padding: 12px 20px 0; }
+.dialog-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
+.dialog-error { color: var(--coral); font-size: 13px; padding: 0 20px; }
+/* An error said inside a field's own column takes the column's edge. */
+.dialog-field .dialog-error { padding: 0; }
+
+/* ── Picking one from a list ───────────────────────────────────────────── */
+.picker-search { display: flex; align-items: center; gap: 8px; margin: 10px 20px 6px; padding: 0 10px; border-radius: 9px; background: var(--raised); border: 1px solid var(--line-2); color: var(--text-3); }
+.picker-search:focus-within { border-color: var(--edge-focus); box-shadow: 0 0 0 3px var(--ring-focus); }
+.picker-search input, .picker-search input:focus { border: none; background: transparent; padding: 9px 0; box-shadow: none; }
+.picker-list { list-style: none; overflow-y: auto; padding: 4px 12px 10px; min-height: 80px; }
+.picker-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 9px; color: var(--text-3); }
+.picker-item:hover:not(:disabled) { background: var(--row-hover); color: var(--text-2); }
+.picker-item:disabled { opacity: .62; }
+.picker-item-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.picker-item-meta { font-size: 12px; color: var(--text-3); flex: none; }
+.picker-empty { font-size: 13px; color: var(--text-3); padding: 12px 10px; }
+.picker-item.is-active:not(:disabled) { background: var(--row-hover); color: var(--text-2); }
+.picker-item > .icon { flex: none; width: 14px; height: 14px; color: var(--text-3); }
+.picker-more { font-size: 12px; color: var(--text-3); padding: 6px 10px; }
+.picker-create { color: var(--text-2); font-weight: 500; }
+/* The compact picker: in a row, or in a small layer by a field. */
+.picker-compact .picker-search { margin: 0 0 4px; padding: 0 8px; border-radius: 6px; }
+.picker-compact .picker-search input, .picker-compact .picker-search input:focus { padding: 5px 0; font-size: 12.5px; }
+.picker-compact .picker-list { padding: 0; max-height: 200px; min-height: 0; }
+.picker-compact .picker-item { padding: 5px 8px; border-radius: 6px; font-size: 13px; color: var(--text-2); }
+.picker-compact .picker-item-name { font-size: 13px; font-weight: 400; color: var(--text); }
+.picker-compact .picker-empty { padding: 8px; font-size: 12px; text-align: center; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.tab-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.tab-toggle .icon { width: 14px; height: 14px; }
+.tabs { display: flex; gap: 2px; padding: 8px 20px 0; border-bottom: 1px solid var(--line); }
+.tab { height: 34px; padding: 0 12px; font-size: 13px; font-weight: 500; color: var(--text-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--text); background: var(--raised); border-radius: 6px 6px 0 0; }
+.tab.is-on { color: var(--text); border-bottom-color: var(--text-2); }
+
+/* ── Toasts: bottom-right, never over the box where you type ──────────── */
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 120; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
+@media (max-width: 760px) { .toasts { right: 12px; left: 12px; bottom: auto; top: 12px; align-items: stretch; } }
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 12px;
+  background: var(--surface-float); border: 1px solid var(--line-2); box-shadow: var(--shadow); font-size: 13.5px; max-width: min(640px, 92vw);
+  animation: pop .14s ease-out;
+}
+.toast-text { flex: 1; }
+.toast-action { color: var(--text); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.toast-error { border-color: rgba(240, 138, 138, .75); }
+.toast-error > .icon { color: var(--coral); }
+
+/* ── Markdown, styled by element: the cards' rendering and the editor's are the same markup ── */
+.md-body > * + * { margin-top: .7em; }
+.md-body p { margin: 0; }
+.md-body * + p { margin-top: .7em; }
+.md-body strong { font-weight: 650; color: #f3f5f8; }
+.md-body em { font-style: italic; }
+.md-body a { color: var(--text); text-decoration: underline; text-decoration-color: var(--text-3); text-underline-offset: 2px; }
+.md-body blockquote { border-left: 3px solid var(--line-2); padding-left: 14px; color: var(--text-2); }
+.md-body br { display: block; content: ""; margin-top: .35em; }
+.md-body h1, .md-body h2, .md-body h3 { font-weight: 650; line-height: 1.3; margin-top: 1.1em; }
+.md-body h1 { font-size: 1.3em; }
+.md-body h2 { font-size: 1.15em; }
+.md-body h3 { font-size: 1.02em; }
+.md-body > :is(h1, h2, h3):first-child { margin-top: 0; }
+.md-body ul, .md-body ol { padding-left: 1.4em; }
+.md-body li { margin: .3em 0; padding-left: .2em; }
+.md-body ul li::marker { color: var(--text-3); }
+.md-body ol li::marker { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.md-body hr { border: none; border-top: 1px solid var(--line-2); margin: 1.2em 0; }
+.md-body :not(pre) > code {
+  font-family: var(--mono); font-size: .82em; background: var(--raised-2); padding: .1em .38em; border-radius: 5px;
+  color: #e6e9ee; white-space: break-spaces;
+}
+.md-body pre { background: var(--surface-sunk); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow-x: auto; }
+.md-body pre > code { font-family: var(--mono); font-size: 13px; line-height: 1.6; color: #d9dde4; white-space: pre; }
+.md-body table { border-collapse: collapse; font-family: var(--sans); font-size: 13.5px; line-height: 1.45; display: block; overflow-x: auto; max-width: 100%; }
+.md-body th, .md-body td { padding: 7px 14px 7px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.md-body th { font-weight: 600; color: var(--text); border-bottom-color: var(--line-2); }
+.md-body td { color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* ── Inline note pills ──────────────────────────────────────────────────── */
+.note-pill {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; margin: 0 2px;
+  border-radius: 4px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .18);
+  font-size: 13px; font-weight: 500; color: var(--text-2); cursor: pointer;
+  vertical-align: baseline; white-space: nowrap;
+}
+.note-pill:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .28); }
+.note-pill.is-retired { text-decoration: line-through; color: var(--text-3); opacity: .6; }
+
+/* ── Editing a card's markdown ──────────────────────────────────────────── */
+.rich-edit { outline: none; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); min-height: 80px; cursor: text; }
+.rich-edit:focus-within { border-color: var(--edge-focus); }
+.rich-edit > * + * { margin-top: .4em; }
+.rich-editor-tools {
+  display: flex; align-items: center; gap: 2px; padding: 4px 6px; margin-bottom: 6px; border-radius: 8px;
+  background: var(--raised); border: 1px solid var(--line-2); position: sticky; top: 0; z-index: 10;
+}
+.rich-editor-sep { width: 1px; height: 16px; background: var(--line-2); margin: 0 3px; flex: none; }
+.rich-editor-mode { margin-top: 6px; }
+.rich-editor-markdown { font-family: var(--mono); font-size: 13px; line-height: 1.6; tab-size: 2; min-height: 120px; }
+
+/* ── What's dragged: its name ────────────────────────────────────────────── */
+.drag-ghost {
+  position: fixed; top: -999px; max-width: 320px; padding: 6px 12px; border-radius: 8px;
+  background: var(--raised-2); color: var(--text); box-shadow: 0 0 0 1px var(--line-2);
+  font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

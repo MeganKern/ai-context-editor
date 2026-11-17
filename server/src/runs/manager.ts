@@ -1,0 +1,291 @@
+import type { AgentEvent, AgentStep, LiveOutput, QueueInfo } from "../../../shared/snapshot.js";
+import { getPool, isConnectionError } from "../db/pool.js";
+import { putBlob } from "../db/blobs.js";
+import { submitInternal } from "../db/writer.js";
+import { waitReason, type Wait } from "../domain/readiness.js";
+import type { Payload } from "../domain/prompts.js";
+import type { FileChange } from "../domain/run-ending.js";
+import { SHUTDOWN_GRACE_MS } from "./config.js";
+import { LIMITS, type Producer, type RunHandler, type StartingRun } from "./handler.js";
+import { getHandler } from "./handlers/index.js";
+import { type ProducerIO, produceChat, produceAgent } from "./executors.js";
+import { saidText } from "./claude-cli.js";
+import type { ExecutedKind } from "../domain/runs.js";
+
+/**
+ * Starts queued runs and sees them through. A run starts once its producer has a free slot and
+ * nothing it waits for is going (domain/readiness.ts) — checked each time it could start, and
+ * again, for certain, in the transaction that starts it, which also records what it's sent. While
+ * it works, what it writes is streamed to the page and saved every second as a checkpoint, so a
+ * restart keeps what it had. When it ends, its texts are stored as blobs and the outcome is
+ * reported through the writer, like every other change. What a run that didn't finish keeps is
+ * decided here, once: a model call keeps the text so far, an agent what it had said.
+ */
+
+const CHECKPOINT_MS = 1000;
+const REPORT_RETRIES = 5;
+
+interface Live {
+  handler: RunHandler<ExecutedKind>;
+  threadId: string | null;
+  controller: AbortController;
+  text: string;
+  steps: AgentStep[];
+  raw: string[];
+  ended: Promise<void>;
+}
+
+interface Waiting { runId: string; handler: RunHandler<ExecutedKind>; wait: Wait | "capacity" | null }
+
+export interface RunOutput { run_id: string; thread_id: string | null; workspace_id: string; offset: number; text?: string; event?: AgentEvent }
+let outputListener: ((o: RunOutput) => void) | null = null;
+export function onRunOutput(fn: (o: RunOutput) => void): void { outputListener = fn; }
+
+const waiting: Waiting[] = [];
+const live = new Map<string, Live>();
+let shuttingDown = false;
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+const inUse = (producer: Producer) => [...live.values()].filter(l => l.handler.producer === producer).length;
+
+/** The database may be briefly away; what a run reports is worth asking again. */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!isConnectionError(e) || attempt >= REPORT_RETRIES) throw e;
+      await sleep(Math.min(500 * 2 ** attempt, 8000));
+    }
+  }
+}
+const report = (name: string, args: Record<string, unknown>, runId: string): Promise<any> =>
+  withRetry(() => submitInternal(name, args, { kind: "run", id: runId }));
+const store = (text: string | undefined): Promise<string | undefined> =>
+  text === undefined ? Promise.resolve(undefined) : withRetry(() => putBlob(getPool(), text));
+
+let draining = false;
+let drainAgain = false;
+
+/** Starts every waiting run that can start now, in the order they were asked for. */
+async function drain(): Promise<void> {
+  if (draining) { drainAgain = true; return; }
+  draining = true;
+  try {
+    do {
+      drainAgain = false;
+      for (const w of [...waiting]) {
+        if (shuttingDown) return;
+        if (inUse(w.handler.producer) >= LIMITS[w.handler.producer]) { w.wait = "capacity"; continue; }
+        let wait: Wait | null;
+        try { wait = await waitReason(getPool(), w.runId); } catch (e) { console.error(`Run ${w.runId}: couldn't check whether it can start:`, e); continue; }
+        if (wait) { w.wait = wait; continue; }
+        const i = waiting.indexOf(w);
+        if (i < 0) continue;
+        waiting.splice(i, 1);
+        launch(w);
+      }
+    } while (drainAgain);
+  } finally {
+    draining = false;
+  }
+}
+
+function launch(w: Waiting): void {
+  let ended!: () => void;
+  const entry: Live = {
+    handler: w.handler, threadId: null, controller: new AbortController(), text: "", steps: [], raw: [],
+    ended: new Promise<void>(r => { ended = r; }),
+  };
+  live.set(w.runId, entry);
+  execute(w, entry)
+    .catch(e => console.error(`Run ${w.runId}:`, e))
+    .finally(() => {
+      live.delete(w.runId);
+      ended();
+      void drain();
+    });
+}
+
+function timeoutMessage(reason: string, h: RunHandler<ExecutedKind>): string {
+  return reason === "idle"
+    ? `Nothing arrived for ${Math.round((h.idleTimeoutMs ?? 0) / 60_000)} minutes`
+    : `It took longer than ${Math.round((h.totalTimeoutMs ?? 0) / 1000)} seconds`;
+}
+
+async function execute(w: Waiting, entry: Live): Promise<void> {
+  const runId = w.runId;
+  const started = await report("start_run", { run_id: runId }, runId) as { go: boolean; wait?: Wait; run?: StartingRun; payload?: Payload };
+  if (!started.go) {
+    // Something it waits for started meanwhile: it waits again, and is tried when that ends.
+    if (started.wait) waiting.push({ ...w, wait: started.wait });
+    return;
+  }
+  const { controller } = entry;
+  const run = started.run!;
+  entry.threadId = run.thread_id;
+  const h = entry.handler;
+
+  let idle: ReturnType<typeof setTimeout> | null = null;
+  const touch = () => {
+    if (!h.idleTimeoutMs) return;
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => controller.abort("idle"), h.idleTimeoutMs);
+  };
+  touch();
+  const total = h.totalTimeoutMs ? setTimeout(() => controller.abort("total"), h.totalTimeoutMs) : null;
+
+  let saved = { text: 0, raw: 0 };
+  let saving: Promise<void> | null = null;
+  const checkpoint = () => {
+    if (saving || (entry.text.length === saved.text && entry.raw.length === saved.raw)) return;
+    const at = { text: entry.text.length, raw: entry.raw.length };
+    saving = getPool().query(
+      `INSERT INTO run_checkpoints (run_id, text_so_far, raw, updated_at) VALUES ($1, $2, $3, now())
+       ON CONFLICT (run_id) DO UPDATE SET text_so_far = $2, raw = $3, updated_at = now()`,
+      [runId, entry.text, JSON.stringify(entry.raw)],
+    ).then(() => { saved = at; }, e => console.error(`Run ${runId}: checkpoint failed:`, e.message))
+      .finally(() => { saving = null; });
+  };
+  const checkpoints = setInterval(checkpoint, CHECKPOINT_MS);
+
+  let changes: FileChange[] | undefined;
+  const io: ProducerIO = {
+    signal: controller.signal,
+    steps: entry.steps,
+    emit: ({ text, event, raw }) => {
+      const base = { run_id: runId, thread_id: run.thread_id, workspace_id: run.workspace_id };
+      if (raw !== undefined) entry.raw.push(raw);
+      if (text) {
+        outputListener?.({ ...base, offset: entry.text.length, text });
+        entry.text += text;
+      }
+      // The producer's reader has already put the step in (or filled a result in): a new step's
+      // offset is where it went; a result's is how many steps there are by then.
+      if (event) outputListener?.({ ...base, offset: event.step ? entry.steps.length - 1 : entry.steps.length, event });
+    },
+    activity: touch,
+    setChanges: (c) => { changes = c; },
+  };
+
+  const produce = h.producer === "agent" ? produceAgent : produceChat;
+  let ending: { name: "complete_run" | "fail_run"; args: Record<string, unknown>; result?: string };
+  try {
+    const r = await produce(run, started.payload!, io);
+    ending = {
+      name: "complete_run", result: r.result,
+      args: { finish: r.finish, input_tokens: r.input_tokens, output_tokens: r.output_tokens },
+    };
+  } catch (e) {
+    const reason = controller.signal.aborted ? String(controller.signal.reason) : null;
+    const status = reason === "idle" || reason === "total" ? "timed_out"
+      : reason === "shutdown" ? "interrupted" : reason ? "stopped" : "failed";
+    const error = status === "timed_out" ? timeoutMessage(reason!, h)
+      : status === "interrupted" ? "The server shut down while it was running"
+      : status === "failed" ? (e instanceof Error ? e.message : String(e)) : undefined;
+    const partial = h.producer === "agent" ? saidText(entry.steps) : entry.text.trim();
+    ending = { name: "fail_run", result: partial || undefined, args: { status, error } };
+  } finally {
+    clearInterval(checkpoints);
+    if (idle) clearTimeout(idle);
+    if (total) clearTimeout(total);
+    await saving;
+  }
+
+  try {
+    await report(ending.name, {
+      run_id: runId, ...ending.args,
+      result_hash: await store(ending.result),
+      transcript_hash: await store(entry.raw.length ? entry.raw.join("\n") : undefined),
+      changes,
+    }, runId);
+  } catch (e) {
+    // Its outcome couldn't be recorded as it was; at least it doesn't stay "running".
+    console.error(`Run ${runId}: couldn't record how it ended:`, e);
+    await report("fail_run", {
+      run_id: runId, status: "failed", error: `Its result couldn't be recorded: ${(e as Error).message}`,
+    }, runId).catch(e2 => console.error(`Run ${runId}: couldn't record the failure either:`, e2));
+  }
+  await getPool().query("DELETE FROM run_checkpoints WHERE run_id = $1", [runId]).catch(() => {});
+}
+
+const WAITS: Record<Wait, QueueInfo> = {
+  above: { label: "Waiting for the card above", detail: "Starts when the card above it is written" },
+  source: { label: "Waiting for a message it covers", detail: "Starts when the message being written is finished" },
+  agent: { label: "Waiting for the other agent in this folder", detail: "Starts when the agent working in this workspace's folder ends" },
+};
+
+export interface RunManager {
+  start(runId: string): void;
+  abort(runId: string, reason: string): void;
+  /** What each run going in the thread (null: in no thread) has written so far. */
+  liveOutput(threadId: string | null): Record<string, LiveOutput>;
+  /** A run's text so far (a reply, a summary). */
+  liveText(runId: string): string | null;
+  queueInfo(runId: string): QueueInfo | null;
+  shutdown(): Promise<void>;
+}
+
+const manager: RunManager = {
+  start(runId) {
+    if (shuttingDown || live.has(runId) || waiting.some(w => w.runId === runId)) return;
+    (async () => {
+      const { rows: [r] } = await getPool().query<{ kind: string }>(
+        "SELECT kind FROM runs WHERE id = $1 AND status = 'queued'", [runId]);
+      if (!r) return;
+      const handler = getHandler(r.kind);
+      if (live.has(runId) || waiting.some(w => w.runId === runId)) return;
+      waiting.push({ runId, handler, wait: null });
+      await drain();
+    })().catch(e => console.error(`Run ${runId}: couldn't be queued:`, e));
+  },
+
+  abort(runId, reason) {
+    const going = live.get(runId);
+    if (going) {
+      going.controller.abort(reason);
+      return;
+    }
+    const i = waiting.findIndex(w => w.runId === runId);
+    if (i >= 0) waiting.splice(i, 1);
+    // Not started (or not known here): record that it was stopped, whatever state it's in.
+    report("fail_run", { run_id: runId, status: "stopped" }, runId)
+      .catch(e => console.error(`Run ${runId}: couldn't record that it was stopped:`, e))
+      .finally(() => { void drain(); });
+  },
+
+  liveOutput(threadId) {
+    const out: Record<string, LiveOutput> = {};
+    for (const [runId, l] of live) {
+      if (l.threadId !== threadId) continue;
+      out[runId] = l.handler.producer === "agent" ? { offset: l.steps.length, steps: [...l.steps] } : { offset: l.text.length, text: l.text };
+    }
+    return out;
+  },
+
+  liveText(runId) {
+    return live.get(runId)?.text ?? null;
+  },
+
+  queueInfo(runId) {
+    const w = waiting.find(q => q.runId === runId);
+    if (!w) return null;
+    if (w.wait === "capacity") {
+      const n = inUse(w.handler.producer);
+      return { label: "Queued", detail: `${w.handler.producer === "agent" ? `${n} agents are already running` : `${n} model calls are already going`}; starts when one finishes` };
+    }
+    return w.wait ? WAITS[w.wait] : { label: "Queued", detail: "Waiting to start" };
+  },
+
+  async shutdown() {
+    shuttingDown = true;
+    // Those not started stay queued, and start again with the server.
+    waiting.length = 0;
+    const ending = [...live.values()].map(l => { l.controller.abort("shutdown"); return l.ended; });
+    await Promise.race([Promise.all(ending), sleep(SHUTDOWN_GRACE_MS)]);
+  },
+};
+
+export function getRunManager(): RunManager {
+  return manager;
+}
