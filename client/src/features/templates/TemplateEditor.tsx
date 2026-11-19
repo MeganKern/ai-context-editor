@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { StepKind } from "../../../../shared/snapshot.js";
 import { AUTO_CATALOG, blanks } from "../../../../shared/template-vars.js";
-import { run, threadPending, useModel } from "../../data/model.js";
+import { hasAgents, run, threadPending, useModel } from "../../data/model.js";
 import { activity } from "../../session/activity.js";
 import { layout } from "../../session/layout.js";
 import { formatK, MOD, plural } from "../../derive/text.js";
@@ -19,11 +19,11 @@ const KIND: Record<StepKind, { label: string; help: string }> = {
 };
 const KINDS: StepKind[] = ["reply", "post", "agent"];
 
-/** What a step does. An agent step can always be written; a server without agents refuses to run the template. */
-function KindPicker({ value, onChange, name }: { value: StepKind; onChange: (k: StepKind) => void; name: string }) {
+/** What a step does. The agent kind is offered only when the server has agents — or when the step already is one, so it can still be changed. */
+function KindPicker({ value, onChange, name, kinds }: { value: StepKind; onChange: (k: StepKind) => void; name: string; kinds: StepKind[] }) {
   return (
     <div className="seg" role="radiogroup" aria-label="What this step does" data-help="tp.kind">
-      {KINDS.map(k => (
+      {kinds.map(k => (
         <label key={k} className={`seg-opt ${value === k ? "is-on" : ""} ${k === "agent" ? "is-agent" : ""}`} title={KIND[k].help}>
           <input type="radio" name={name} checked={value === k} onChange={() => onChange(k)} />
           {k === "agent" && <Icon name="agent" />}{KIND[k].label}
@@ -37,7 +37,9 @@ function KindPicker({ value, onChange, name }: { value: StepKind; onChange: (k: 
 export function TemplateEditor() {
   const thread = useModel(s => s.thread);
   const pending = useModel(threadPending);
-  const agents = useModel(s => s.app?.features.agents === "on");
+  const agents = useModel(hasAgents);
+  // The agent kind is offered only when agents are on — or when a step already is one, so it stays changeable.
+  const stepKinds = (current: StepKind): StepKind[] => KINDS.filter(k => k !== "agent" || agents || k === current);
   const [editing, setEditing] = useState<{ id: string; content: string; kind: StepKind } | null>(null);
   const [draft, setDraft] = useState("");
   const [draftKind, setDraftKind] = useState<StepKind>("reply");
@@ -108,7 +110,7 @@ export function TemplateEditor() {
                       <div className="step-edit">
                         <textarea ref={editRef} autoFocus value={editing.content} aria-label={`Step ${i + 1} text`} onChange={e => setEditing({ ...editing, content: e.target.value })} />
                         <div className="step-edit-bar">
-                          <KindPicker value={editing.kind} onChange={k => setEditing({ ...editing, kind: k })} name={`kind-${step.id}`} />
+                          <KindPicker value={editing.kind} onChange={k => setEditing({ ...editing, kind: k })} name={`kind-${step.id}`} kinds={stepKinds(editing.kind)} />
                           <span className="spacer" />
                           <Button kind="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
                           <Button kind="primary" size="sm" help="update_step" onClick={() => void saveEdit()}>Save step</Button>
@@ -147,7 +149,7 @@ export function TemplateEditor() {
                   placeholder={draftKind === "agent" ? "The agent's task…" : steps.length ? "The next message the run should post…" : "The first message the run should post…"}
                   onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void add(); } }} />
                 <div className="step-edit-bar">
-                  <KindPicker value={draftKind} onChange={setDraftKind} name="kind-new" />
+                  <KindPicker value={draftKind} onChange={setDraftKind} name="kind-new" kinds={stepKinds(draftKind)} />
                   <span className="spacer" />
                   <Button kind="primary" size="sm" icon="plus" help="add_step" onClick={() => void add()} disabled={!draft.trim()}>Add step <kbd>{MOD} ⏎</kbd></Button>
                 </div>

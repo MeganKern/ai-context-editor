@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { RunView } from "../../../../shared/snapshot.js";
 import { AUTO_CATALOG, validate } from "../../../../shared/template-vars.js";
-import { run, useModel } from "../../data/model.js";
+import { hasAgents, run, useModel } from "../../data/model.js";
 import { navigate, useRoute } from "../../session/route.js";
 import { threadTree, type ThreadNode } from "../../derive/threads.js";
 import { clip, fullTime, RUN_STATUS_LABEL, timeLabel } from "../../derive/text.js";
@@ -13,7 +13,7 @@ import { setRunValue, useRunValues } from "./runValues.js";
 export function RunPanel() {
   const thread = useModel(s => s.thread);
   const ws = useModel(s => s.ws);
-  const agents = useModel(s => s.app?.features.agents === "on");
+  const agents = useModel(hasAgents);
   const templateId = thread?.thread.id ?? "";
   const values = useRunValues(templateId);
   const tree = useMemo(() => (ws ? threadTree(ws) : null), [ws]);

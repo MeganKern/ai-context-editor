@@ -1,4 +1,5 @@
 import type { AgentPermission } from "./agent.js";
+import type { Features } from "./features.js";
 
 /**
  * The wire contract: what the server reads out for the app. Every snapshot is the exact shape a
@@ -317,7 +318,7 @@ export interface LlmView {
 /** Everything above the workspace: what the app as a whole is set to. */
 export interface AppSnapshot {
   /** What this server can do: agents only when its operator switched them on and Claude Code is there. */
-  features: { agents: "on" | "off" | "cli-missing" };
+  features: Features;
   workspaces: WorkspaceListItem[];
   /** null: nothing set up yet. */
   llm: LlmView | null;

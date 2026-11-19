@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BEHAVIOUR as B } from "../../../../shared/behaviour.js";
 import { marker } from "../../../../shared/note-markers.js";
 import { AGENT_EFFORTS, AGENT_EFFORT_LABELS, AGENT_MODELS, AGENT_MODEL_LABELS, type AgentEffort, type AgentModel } from "../../../../shared/agent.js";
-import { run, useModel } from "../../data/model.js";
+import { hasAgents, run, useModel } from "../../data/model.js";
 import { setDraft, useDraft } from "../../data/drafts.js";
 import { composer, useComposer } from "../../session/composer.js";
 import { navigate } from "../../session/route.js";
@@ -39,7 +39,7 @@ export function Composer() {
   useAutoGrow(msgRef, draft.message);
   useAutoGrow(taskRef, draft.task);
 
-  const agents = useModel(s => s.app?.features.agents === "on");
+  const agents = useModel(hasAgents);
   const isAgent = agents && mode === "agent";
   useEffect(() => { (isAgent ? taskRef : msgRef).current?.focus(); }, [threadId, isAgent, continueCardId]);
 
@@ -97,29 +97,29 @@ export function Composer() {
   return (
     <div className={`composer ${isAgent ? "is-agent" : ""}`} data-help-area="area.composer">
       <div className="composer-box">
-        <div className="composer-modes">
-          <div className="seg is-plain" role="tablist" aria-label="What to add">
-            <button type="button" role="tab" aria-selected={!isAgent} className={`seg-opt ${!isAgent ? "is-on" : ""}`} data-help="cb.message-mode" onClick={() => composer.setMode("message")}>Message</button>
-            {agents && (
+        {agents && (
+          <div className="composer-modes">
+            <div className="seg is-plain" role="tablist" aria-label="What to add">
+              <button type="button" role="tab" aria-selected={!isAgent} className={`seg-opt ${!isAgent ? "is-on" : ""}`} data-help="cb.message-mode" onClick={() => composer.setMode("message")}>Message</button>
               <button type="button" role="tab" aria-selected={isAgent} className={`seg-opt is-agent ${isAgent ? "is-on" : ""}`} data-help="cb.agent-mode" onClick={() => composer.setMode("agent")}>
                 <Icon name="agent" /> Agent task
               </button>
+            </div>
+            {isAgent && continueCardId && continueTask && (
+              <span className="composer-follow" data-help="cb.follow">
+                Following up on: <em>{clip(continueTask, 60)}</em>
+                <IconButton icon="close" label="Start a new agent instead" onClick={() => composer.setMode("agent")} />
+              </span>
             )}
+            <span className="spacer" />
+            {isAgent && <>
+              <Dial label="Model" value={agent.model} options={dialOptions<AgentModel>(AGENT_MODEL_LABELS, AGENT_MODELS)} onChange={v => composer.patchAgent({ model: v })}
+                help="cb.agent-model" title="Claude Code's --model: an alias for the latest model of that line. Default: Claude Code's own setting." />
+              <Dial label="Effort" value={agent.effort} options={dialOptions<AgentEffort>(AGENT_EFFORT_LABELS, AGENT_EFFORTS)} onChange={v => composer.patchAgent({ effort: v })}
+                help="cb.agent-effort" title="Claude Code's --effort: how much it thinks before acting. Default: Claude Code's own setting." />
+            </>}
           </div>
-          {isAgent && continueCardId && continueTask && (
-            <span className="composer-follow" data-help="cb.follow">
-              Following up on: <em>{clip(continueTask, 60)}</em>
-              <IconButton icon="close" label="Start a new agent instead" onClick={() => composer.setMode("agent")} />
-            </span>
-          )}
-          <span className="spacer" />
-          {isAgent && <>
-            <Dial label="Model" value={agent.model} options={dialOptions<AgentModel>(AGENT_MODEL_LABELS, AGENT_MODELS)} onChange={v => composer.patchAgent({ model: v })}
-              help="cb.agent-model" title="Claude Code's --model: an alias for the latest model of that line. Default: Claude Code's own setting." />
-            <Dial label="Effort" value={agent.effort} options={dialOptions<AgentEffort>(AGENT_EFFORT_LABELS, AGENT_EFFORTS)} onChange={v => composer.patchAgent({ effort: v })}
-              help="cb.agent-effort" title="Claude Code's --effort: how much it thinks before acting. Default: Claude Code's own setting." />
-          </>}
-        </div>
+        )}
 
         {!isAgent ? (
           <textarea key="message" ref={msgRef} className="composer-input" value={draft.message} onChange={e => edit({ message: e.target.value })}

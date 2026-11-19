@@ -5,6 +5,7 @@ import { applyText, applyEvent, reconcile, type LiveBuf } from "./live-merge.js"
 import { notices } from "../session/notices.js";
 import type { ActionName, ActionInput, ActionOutput } from "../../../shared/actions.js";
 import type { AppSnapshot, WorkspaceSnapshot, ThreadSnapshot, AgentEvent } from "../../../shared/snapshot.js";
+import { agentsOn } from "../../../shared/features.js";
 
 /**
  * What the server says, and nothing else: the app, the open workspace and thread as it last sent
@@ -36,6 +37,9 @@ const get = useModel.getState;
  */
 export const wsPending = (s: ReadModel): boolean => s.wsId !== null && s.ws !== null && s.ws.workspace.id !== s.wsId;
 export const threadPending = (s: ReadModel): boolean => s.threadId !== null && s.thread !== null && s.thread.thread.id !== s.threadId;
+
+/** Agents can be used here: the one gate the agent-flavoured UI asks before it shows anything. Off until the app snapshot has loaded. */
+export const hasAgents = (s: ReadModel): boolean => s.app !== null && agentsOn(s.app.features);
 
 function failed(e: unknown): void {
   notices.fail(e instanceof ApiFailure ? e.body.error : e instanceof Error ? e.message : "Something went wrong");

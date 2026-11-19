@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { PromptPreview, ThreadSnapshot } from "../../../../shared/snapshot.js";
 import { read } from "../../data/api.js";
-import { run, useModel } from "../../data/model.js";
+import { hasAgents, run, useModel } from "../../data/model.js";
 import { useResource } from "../../data/resources.js";
 import { activity, useActivityOf } from "../../session/activity.js";
 import { setVisit } from "../../session/route.js";
@@ -25,7 +25,7 @@ export function Inspector() {
   const [applied, setApplied] = useState("");
   const [sourcesOpen, setSourcesOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 1000);
   const { tab, runId } = open;
-  const agents = useModel(s => s.app?.features.agents === "on");
+  const agents = useModel(hasAgents);
   const threadId = thread.thread.id;
   // The next reply's or agent's prompt follows the thread as it changes (seq); a run's is fixed.
   const key = tab === "run" ? (runId ? `runprompt:${runId}` : null) : `preview:${threadId}:${thread.seq}:${tab}:${applied}`;

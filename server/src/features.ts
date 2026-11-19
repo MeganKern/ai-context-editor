@@ -1,4 +1,5 @@
 import type { ActionName } from "../../shared/actions.js";
+import { type AgentsState, type Features, agentsOn as agentsOnFeatures } from "../../shared/features.js";
 import { claudeVersion } from "./runs/claude-cli.js";
 
 /**
@@ -10,18 +11,16 @@ import { claudeVersion } from "./runs/claude-cli.js";
  * off changes what may start, never what is stored — a template keeps its agent steps either way,
  * and is refused at run time.
  */
-export type AgentsState = "on" | "off" | "cli-missing";
-
 let agents: AgentsState = "off";
 
-export async function detectFeatures(): Promise<{ agents: AgentsState }> {
+export async function detectFeatures(): Promise<Features> {
   if (process.env.DESK_AGENTS === "1") agents = (await claudeVersion()) ? "on" : "cli-missing";
   else agents = "off";
   return { agents };
 }
 
-export const features = (): { agents: AgentsState } => ({ agents });
-export const agentsOn = (): boolean => agents === "on";
+export const features = (): Features => ({ agents });
+export const agentsOn = (): boolean => agentsOnFeatures(features());
 
 /** The asks that start an agent: refused outright when the server has none. */
 export const needsAgents = (name: ActionName): boolean => name === "dispatch_agent" || name === "agent_follow_up";

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentStep, Role } from "../../../../shared/snapshot.js";
 import { BEHAVIOUR as B } from "../../../../shared/behaviour.js";
 import { read } from "../../data/api.js";
-import { run, useModel } from "../../data/model.js";
+import { hasAgents, run, useModel } from "../../data/model.js";
 import { useResource } from "../../data/resources.js";
 import { rows } from "../../session/rows.js";
 import { composer } from "../../session/composer.js";
@@ -41,7 +41,7 @@ const AREA: Record<Role, HelpKey> = { user: "area.user", assistant: "area.reply"
 export function Card({ view }: { view: CardView }) {
   const { item, can } = view;
   const ws = useModel(s => s.ws);
-  const agents = useModel(s => s.app?.features.agents === "on");
+  const agents = useModel(hasAgents);
   const threadId = useModel(s => s.threadId);
   const live = useModel(s => (item.run ? s.live[item.run.id] : undefined));
   const [editText, setEditText] = useState<string | null>(null);
