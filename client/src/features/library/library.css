@@ -154,6 +154,8 @@ button.ctxp-row-text:disabled { cursor: default; }
 .ctxp-combine-rename input { flex: 1; min-width: 0; padding: 4px 8px; font-size: 12.5px; border-radius: 5px; }
 .ctxp-combine-review-text { font-size: 12.5px; line-height: 1.45; color: var(--text-2); max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--bg); }
 .ctxp-combine-review-text.is-streaming { opacity: .8; }
+.ctxp-combine-revise { margin-top: 10px; }
+.ctxp-combine-revise .field-grow { width: 100%; }
 
 /* Picked to combine: the same neutral ring a picked card wears in the conversation. */
 .ctxp-row.is-selected > .ctxp-row-line { box-shadow: 0 0 0 2px var(--text); border-radius: 6px; }

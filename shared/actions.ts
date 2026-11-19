@@ -46,6 +46,8 @@ export const actions = {
   version_set_newer:  { input: z.object({ note_id: id, newer_id: id }), output: ok },
   combine_notes:      { input: z.object({ workspace_id: id, note_ids: z.array(id).min(2), name: text, instructions: z.string().optional() }),
                         output: z.object({ note_id: id, run_id: id }) },
+  revise_combine:     { input: z.object({ note_id: id, instructions: z.string().optional() }), output: z.object({ run_id: id }) },
+  accept_combine:     { input: z.object({ note_id: id }),                        output: ok },
   retire_note:        { input: z.object({ note_id: id }),                        output: ok },
   reactivate_note:    { input: z.object({ note_id: id }),                        output: ok },
   delete_note:        { input: z.object({ note_id: id }),                        output: ok },

@@ -104,7 +104,17 @@ export const BEHAVIOUR = {
   combine_notes: {
     name: "Combine library items",
     tip: "AI reads the selected items and writes one combined item",
-    help: `Sends every selected item's text to the model with your instructions, and the model writes one new library item from them; you watch it being written. Then you review it: accept it into the library, rename it, edit the text, open it in the full editor, or discard it. Until you accept, nothing is in the library and no thread changes; the original items are never changed or removed. ${COSTS_ONE}`,
+    help: `Sends every selected item's text to the model with your instructions, and the model writes one new library item from them; you watch it being written. Then you review it: edit the text, rewrite it with changed instructions, rename it, or discard it. When you accept, it becomes the current version of the items it was built from — each of those moves under it as an older version, kept as history, and every thread that used one switches to the combined item. Nothing changes until you accept; discarding leaves the originals exactly as they were. ${COSTS_ONE}`,
+  },
+  revise_combine: {
+    name: "Rewrite a combined item",
+    tip: "Rewrite it — edit the instructions to steer it",
+    help: `Has the model write the combined item again from the same source items, read as they are now, with your instructions — edit them first to steer it. The new text replaces the draft for you to review; the source items aren't touched, and nothing changes until you accept. ${COSTS_ONE}`,
+  },
+  accept_combine: {
+    name: "Accept a combined item",
+    tip: "Accept — the sources become older versions under it",
+    help: "Puts the combined item to use as the current version of the items it was built from: each of those moves under it as an older version — kept as history in its version tree, out of the library's active list — and every thread that used one now uses the combined item instead. If a source already had its own versions, that whole lineage comes along under it. Reversible: make any older version current again. Nothing is sent to the model now.",
   },
   retire_note: {
     name: "Retire a library item",

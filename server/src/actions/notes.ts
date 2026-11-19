@@ -1,4 +1,5 @@
 import { implement, DomainError } from "../db/writer.js";
+import type { Tx } from "../db/pool.js";
 import { putBlob } from "../db/blobs.js";
 import { requireThread } from "../domain/threads.js";
 import { requireWorkspace } from "../domain/workspaces.js";
@@ -90,6 +91,40 @@ implement("combine_notes", async (args, tx, ctx) => {
     input: { note_ids: args.note_ids, note_id: noteId, instructions: args.instructions },
   });
   return { note_id: noteId, run_id: runId };
+});
+
+/** The combine run records which items it was built from; both review actions below read them back. */
+async function combineSources(tx: Tx, noteId: string): Promise<string[]> {
+  const { rows: [prev] } = await tx.query<{ input: { note_ids: string[] } }>(
+    "SELECT input FROM runs WHERE kind = 'combine' AND input->>'note_id' = $1 ORDER BY created_at DESC LIMIT 1", [noteId]);
+  if (!prev) throw new DomainError("invalid", "This item wasn't combined");
+  return prev.input.note_ids.filter(id => id !== noteId);
+}
+
+// Rewrite the combined item from the same sources, read as they are now, with changed instructions.
+implement("revise_combine", async (args, tx, ctx) => {
+  const note = await requireNote(tx, args.note_id);
+  const sources = await combineSources(tx, args.note_id);
+  const { runId } = await insertRun(tx, ctx, {
+    workspaceId: note.workspace_id, kind: "combine",
+    input: { note_ids: sources, note_id: args.note_id, instructions: args.instructions },
+  });
+  return { run_id: runId };
+});
+
+// Accept the distillation: the combined item becomes current, each source becomes an older version
+// under it (its whole lineage if it had one), and threads that used a source follow to it.
+implement("accept_combine", async (args, tx, ctx) => {
+  await requireNote(tx, args.note_id);
+  for (const sourceId of await combineSources(tx, args.note_id)) {
+    const { rows: [src] } = await tx.query<{ tree_id: string | null }>(
+      "SELECT tree_id FROM notes WHERE id = $1 AND deleted_at IS NULL", [sourceId]);
+    if (!src) continue;                                              // a source deleted since the draft
+    const current = await requireNote(tx, args.note_id);             // its tree may have formed earlier in the loop
+    if (src.tree_id && src.tree_id === current.tree_id) continue;    // already under it — idempotent
+    await addOlderVersion(tx, ctx, sourceId, args.note_id);
+  }
+  return { ok: true as const };
 });
 
 // Gone from the library and from every thread; its versions reconnect around it.

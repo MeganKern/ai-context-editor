@@ -105,15 +105,15 @@ export async function workspaceSnapshot(db: Db, wsId: string): Promise<Workspace
      WHERE t.workspace_id = $1 AND t.deleted_at IS NULL
      ORDER BY t.created_at DESC`, [wsId]);
 
-  const { rows: notes } = await db.query<WorkspaceSnapshot["notes"][number] & { combine_run: string | null; combine_status: RunStatus | null; combine_error: string | null }>(
+  const { rows: notes } = await db.query<WorkspaceSnapshot["notes"][number] & { combine_run: string | null; combine_status: RunStatus | null; combine_error: string | null; combine_instructions: string | null }>(
     `SELECT n.id, n.name, ceil(char_length(convert_from(b.content, 'UTF8')) / 4.0)::int AS tokens, n.content_hash, n.copied_from, n.folder_id,
             n.tree_id, n.is_current, n.replaced_by,
             (SELECT count(DISTINCT u.thread_id)::int FROM thread_items u
                JOIN threads t ON t.id = u.thread_id AND t.deleted_at IS NULL WHERE u.note_id = n.id) AS used_in,
-            cr.id AS combine_run, cr.status AS combine_status, cr.error AS combine_error
+            cr.id AS combine_run, cr.status AS combine_status, cr.error AS combine_error, cr.instructions AS combine_instructions
      FROM notes n JOIN blobs b ON b.hash = n.content_hash
      LEFT JOIN LATERAL (
-       SELECT r.id, r.status, r.error FROM runs r WHERE r.kind = 'combine' AND r.input->>'note_id' = n.id ORDER BY r.created_at DESC LIMIT 1
+       SELECT r.id, r.status, r.error, r.input->>'instructions' AS instructions FROM runs r WHERE r.kind = 'combine' AND r.input->>'note_id' = n.id ORDER BY r.created_at DESC LIMIT 1
      ) cr ON true
      WHERE n.workspace_id = $1 AND n.deleted_at IS NULL ORDER BY n.name`, [wsId]);
 
@@ -129,8 +129,8 @@ export async function workspaceSnapshot(db: Db, wsId: string): Promise<Workspace
       branch_of: t.branch_of, branch_at: t.branch_at, branch_at_preview: t.branch_at_preview,
       flags: { running: !!t.running, failed: !!t.failed, unseen: !!t.unseen, review: t.review },
     })),
-    notes: notes.map(({ combine_run, combine_status, combine_error, ...n }) => ({
-      ...n, combining: combine_run ? { run_id: combine_run, status: combine_status!, error: combine_error } : null,
+    notes: notes.map(({ combine_run, combine_status, combine_error, combine_instructions, ...n }) => ({
+      ...n, combining: combine_run ? { run_id: combine_run, status: combine_status!, error: combine_error, instructions: combine_instructions } : null,
     })),
     live: getRunManager().liveOutput(null),
   };

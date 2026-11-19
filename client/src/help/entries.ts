@@ -199,9 +199,9 @@ export const SCREEN = {
     text: "Groups library items in the panel; the model never sees folders or their names. Drop an item onto it to move the item there — the item stays in every thread using it. Removing the folder moves its items to the top level and deletes none of them." },
   "comb.bar": { title: "Combining items", text: B.combine_notes.help },
   "comb.review": { title: "Review combined item",
-    text: "The model wrote this from the items you selected. Accept keeps it as a new library item; edit changes the text first; discard throws it away. The items it was written from aren't changed or removed either way, and nothing is in the library until you accept." },
+    text: "The model wrote this from the items you selected. Edit the text, rewrite it with changed instructions, or discard it. When you accept, it becomes the current version of those items — they move under it as older versions, kept as history, and threads using them switch to it. Nothing changes until you accept; discarding leaves the originals untouched." },
   "comb.accept": { title: "Accept",
-    text: "Keeps the combined text as a new library item, available to any thread in this workspace. The items it was written from stay exactly as they were — nothing is merged or deleted. It isn't added to any thread by this." },
+    text: "Makes the combined item the current version of the items it was built from: each moves under it as an older version — kept in its version tree, out of the library's active list — and every thread that used one switches to the combined item. If a source already had versions, that whole lineage comes along. Reversible by making an older version current. Nothing is sent to the model now." },
   "cx.library": { title: "Library",
     text: `The workspace's reference texts. Each item checked into a thread is sent with every reply there, under its name as a heading, after the system message and before the conversation. ${SHARED_ITEMS}` },
 

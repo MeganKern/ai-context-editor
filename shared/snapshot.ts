@@ -113,7 +113,7 @@ export interface NoteRow {
   is_current: boolean;
   replaced_by: string | null;
   /** The run writing this item from others (its latest), while there is one to show. */
-  combining: { run_id: string; status: RunStatus; error: string | null } | null;
+  combining: { run_id: string; status: RunStatus; error: string | null; instructions: string | null } | null;
 }
 
 export interface WorkspaceSnapshot {

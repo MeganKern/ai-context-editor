@@ -55,19 +55,31 @@ async function pathUp(tx: Tx, fromId: string): Promise<string[]> {
   return path;
 }
 
-/** Puts a plain item under `newerId` as a version it was followed by. */
+/**
+ * Puts `noteId` under `newerId` as a version it was followed by. A plain item joins newer's tree on
+ * its own; an item that already heads a tree brings its whole lineage with it — that tree is absorbed
+ * into newer's, with the item directly under newer. Either way the item must be a standalone item or
+ * the current head of its own tree (both callers — the version map and accept_combine — uphold that),
+ * so the merged tree is left with exactly one current version: newer's.
+ */
 export async function addOlderVersion(tx: Tx, ctx: Ctx, noteId: string, newerId: string): Promise<void> {
   if (noteId === newerId) throw new DomainError("invalid", "An item can't be an older version of itself");
   const note = await requireNote(tx, noteId);
   const newer = await requireNote(tx, newerId, { workspaceId: note.workspace_id });
-  if (note.tree_id) throw new DomainError("invalid", "This item already has versions. Take it out of that tree first.");
+  if (note.tree_id && note.tree_id === newer.tree_id) throw new DomainError("invalid", "These are already versions of the same item");
 
   let treeId = newer.tree_id;
   if (!treeId) {
     treeId = ctx.newId();
     await tx.query("UPDATE notes SET tree_id = $1 WHERE id = $2", [treeId, newerId]);
   }
-  await tx.query("UPDATE notes SET tree_id = $1, is_current = false, replaced_by = $2 WHERE id = $3", [treeId, newerId, noteId]);
+  if (note.tree_id) {
+    // It heads its own tree: move the whole lineage into newer's tree, then hang it under newer.
+    await tx.query("UPDATE notes SET tree_id = $1 WHERE tree_id = $2", [treeId, note.tree_id]);
+    await tx.query("UPDATE notes SET is_current = false, replaced_by = $1 WHERE id = $2", [newerId, noteId]);
+  } else {
+    await tx.query("UPDATE notes SET tree_id = $1, is_current = false, replaced_by = $2 WHERE id = $3", [treeId, newerId, noteId]);
+  }
 
   // A past version is in no thread: the current version stands in, or nothing does.
   const current = await currentOf(tx, treeId);

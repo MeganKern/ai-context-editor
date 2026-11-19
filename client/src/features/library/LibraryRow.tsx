@@ -63,6 +63,8 @@ export function LibraryRow({ row }: { row: LibRow }) {
     { separator: true },
     { label: "Versions…", icon: "merge", hint: "Its versions as a tree: which is current, what followed what", help: "menu.versions", onSelect: () => activity.open({ kind: "version-map", noteId: note.id }) },
   ];
+  // Start a combine from this item: it's pre-picked, then you choose the others and the instructions.
+  if (ws.notes.length >= 2) items.push({ label: "Combine items…", icon: "summary", hint: B.combine_notes.tip, help: "combine_notes", onSelect: () => activity.open({ kind: "combine", picked: [note.id] }) });
   if (folders.length > 0) items.push({ label: "Move to folder…", icon: "folder", hint: B.move_note.tip, help: "move_note", onSelect: () => rows.move(note.id) });
   items.push(
     { separator: true },
