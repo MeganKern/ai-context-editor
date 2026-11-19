@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useModel } from "../../data/model.js";
 import { setVisit, useRoute } from "../../session/route.js";
 import { rows } from "../../session/rows.js";
 
 const NEAR_BOTTOM_PX = 80;
+const JUMP_GATE_PX = 220;      // only offer a jump when you're at least this far from that edge
+const JUMP_LINGER_MS = 1800;   // keep the button this long after scrolling stops, so it stays clickable
 const nearBottom = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
 
 /**
@@ -21,6 +23,9 @@ export function useConvoScroll() {
   const prevLen = useRef(0);
   const prevId = useRef<string | undefined>(undefined);
   const stick = useRef(true);
+  const [jump, setJump] = useState<"up" | "down" | null>(null);
+  const lastTop = useRef(0);
+  const lingerTimer = useRef<number | undefined>(undefined);
 
   // Latched on the thread's first snapshot: later ones say "seen", and the divider would vanish.
   const newSinceId = useMemo(() => {
@@ -88,7 +93,32 @@ export function useConvoScroll() {
     return () => ro.disconnect();
   }, [thread?.thread.id]);
 
-  const onScroll = (e: React.UIEvent<HTMLDivElement>) => { stick.current = nearBottom(e.currentTarget); };
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    stick.current = nearBottom(el);
+    // A jump button appears in the direction you're scrolling, but only when there's somewhere to
+    // go, and lingers briefly after you stop — so you can reach for it instead of scrolling by hand.
+    const dir = el.scrollTop > lastTop.current ? "down" : el.scrollTop < lastTop.current ? "up" : null;
+    lastTop.current = el.scrollTop;
+    const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const show = dir === "down" && fromBottom > JUMP_GATE_PX ? "down"
+      : dir === "up" && el.scrollTop > JUMP_GATE_PX ? "up" : null;
+    if (show) {
+      setJump(show);
+      window.clearTimeout(lingerTimer.current);
+      lingerTimer.current = window.setTimeout(() => setJump(null), JUMP_LINGER_MS);
+    }
+  };
 
-  return { scrollRef, onScroll, newSinceId };
+  const jumpTo = (dir: "up" | "down") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    window.clearTimeout(lingerTimer.current);
+    setJump(null);
+    el.scrollTo({ top: dir === "down" ? el.scrollHeight : 0, behavior: "smooth" });
+  };
+
+  useEffect(() => () => window.clearTimeout(lingerTimer.current), []);
+
+  return { scrollRef, onScroll, newSinceId, jump, jumpTo };
 }

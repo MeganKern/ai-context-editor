@@ -15,6 +15,58 @@
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 }
+
+/* The scroll area plus its floating jump-to-edge buttons, which must not scroll with the content. */
+.convo-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+
+.convo-jump {
+  position: absolute; left: 50%; transform: translateX(-50%) translateY(6px);
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border-radius: 999px; border: 1px solid var(--edge-strong-2); background: var(--raised-2);
+  color: var(--text-2); box-shadow: var(--shadow); cursor: pointer; z-index: 6;
+  opacity: 0; pointer-events: none; transition: opacity 180ms ease, transform 180ms ease;
+}
+.convo-jump svg { width: 18px; height: 18px; }
+.convo-jump:hover { background: var(--raised-3); color: var(--text); }
+.convo-jump.is-on { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
+.convo-jump.is-down { bottom: 20px; }
+.convo-jump.is-up { top: 20px; }
+
+/* Thread outline — a table of contents overlaying the left centering gutter, so messages stay put.
+   Shown only when the gutter is wide enough that it can't overlap the (centered) message column. */
+.convo-wrap { container-type: inline-size; }
+.thread-outline { display: none; }
+@container (min-width: 1240px) {
+  .thread-outline {
+    display: block; position: absolute; left: 16px; top: 30px; bottom: 30px; z-index: 5;
+    width: min(220px, calc((100cqw - 840px) / 2 - 28px));
+    overflow-y: auto; overscroll-behavior: contain;
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  }
+}
+.to-list, .to-subs { list-style: none; margin: 0; padding: 0; }
+.to-list { padding-top: 2px; }
+.to-subs { margin: 1px 0 4px 15px; border-left: 1px solid var(--line); }
+.to-row { display: flex; align-items: center; gap: 1px; }
+.to-twisty {
+  flex: none; width: 15px; height: 21px; display: flex; align-items: center; justify-content: center;
+  border: none; background: none; color: var(--text-3); cursor: pointer; padding: 0;
+}
+.to-twisty svg { width: 10px; height: 10px; transition: transform 120ms ease; }
+.to-twisty.is-open svg { transform: rotate(90deg); }
+.to-twisty.is-leaf { cursor: default; }
+.to-label {
+  flex: 1; min-width: 0; text-align: left; border: none; background: none; cursor: pointer;
+  color: var(--text-3); font-family: inherit; font-size: 12.5px; line-height: 1.4; padding: 2px 6px; border-radius: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.to-label:hover { color: var(--text); background: var(--row-hover); }
+.to-card-label { color: var(--text-2); font-weight: 500; }
+.to-sub .to-label { font-size: 12px; }
+.to-h3 .to-label { padding-left: 14px; }
+.to-h4 .to-label { padding-left: 26px; }
+.to-h5 .to-label, .to-h6 .to-label { padding-left: 36px; }
 .convo-inner {
   max-width: calc(var(--col) + 80px); margin: 0 auto; padding: 28px 40px 24px; position: relative;
 }

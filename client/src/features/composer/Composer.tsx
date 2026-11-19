@@ -122,7 +122,7 @@ export function Composer() {
         </div>
 
         {!isAgent ? (
-          <textarea ref={msgRef} className="composer-input" value={draft.message} onChange={e => edit({ message: e.target.value })}
+          <textarea key="message" ref={msgRef} className="composer-input" value={draft.message} onChange={e => edit({ message: e.target.value })}
             placeholder="Add to the context…" aria-label="Message" rows={2} disabled={sending} data-help="cb.input"
             onKeyDown={e => {
               if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
@@ -130,7 +130,7 @@ export function Composer() {
               else if (!e.shiftKey) { e.preventDefault(); void send(true); }
             }} />
         ) : (
-          <textarea ref={taskRef} className="composer-input" value={draft.task} onChange={e => edit({ task: e.target.value })}
+          <textarea key="task" ref={taskRef} className="composer-input" value={draft.task} onChange={e => edit({ task: e.target.value })}
             placeholder={continueCardId ? "What should the agent do next?" : ""} aria-label="Agent task" rows={3} disabled={sending} data-help="cb.task"
             onKeyDown={e => {
               if (e.key === "Escape") { e.preventDefault(); composer.setMode("message"); }

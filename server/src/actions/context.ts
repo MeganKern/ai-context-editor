@@ -28,3 +28,20 @@ implement("remove_item", async (args, tx) => {
   if (!rowCount) throw new DomainError("not_found", "That library item isn't used in this thread");
   return { ok: true as const };
 });
+
+// Bulk add/remove (a note on its own, or every note in a folder), atomic in one change set. Adds are
+// idempotent and appended in order; removes of items not present are simply no-ops.
+implement("set_items", async (args, tx, ctx) => {
+  const thread = args.thread_id
+    ? await requireThread(tx, args.thread_id)
+    : await createThread(tx, ctx, { workspaceId: args.workspace_id!, name: "New thread" });
+  if (args.included) {
+    for (const noteId of args.note_ids) {
+      await requireNote(tx, noteId, { workspaceId: thread.workspace_id, current: true });
+      await placeItem(tx, ctx, thread.id, noteId);
+    }
+  } else if (args.note_ids.length) {
+    await tx.query("DELETE FROM thread_items WHERE thread_id = $1 AND note_id = ANY($2)", [thread.id, args.note_ids]);
+  }
+  return { thread_id: thread.id };
+});

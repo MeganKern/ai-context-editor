@@ -18,7 +18,13 @@ export interface LibRow {
   snippet: string | null;
 }
 
-export interface LibFolderNode { folder: FolderRow; folders: LibFolderNode[]; rows: LibRow[]; empty: boolean }
+export interface LibFolderNode {
+  folder: FolderRow; folders: LibFolderNode[]; rows: LibRow[]; empty: boolean;
+  /** Aggregate of every current note in this folder's subtree against the thread: all / none / some in it. */
+  check: "all" | "none" | "some";
+  /** Those notes' ids — what the folder's checkbox adds or removes. */
+  itemIds: string[];
+}
 
 export interface LibraryTree {
   folders: LibFolderNode[];
@@ -33,6 +39,20 @@ export function libraryTree(
   const needle = query.trim().toLowerCase();
   const searching = !!needle;
   const inThread = new Set((thread?.items ?? []).map(i => i.note_id));
+
+  // Every current note in a folder's subtree (unfiltered — the folder checkbox is about real
+  // membership, not the display filter). Memoized so the tree aggregate stays linear.
+  const direct = new Map<string, string[]>();
+  for (const n of ws.notes) if (n.is_current && n.folder_id) direct.set(n.folder_id, [...(direct.get(n.folder_id) ?? []), n.id]);
+  const subtreeCache = new Map<string, string[]>();
+  const subtreeNotes = (fid: string): string[] => {
+    const hit = subtreeCache.get(fid);
+    if (hit) return hit;
+    const ids = [...(direct.get(fid) ?? [])];
+    for (const f of ws.library_folders) if (f.parent_id === fid) ids.push(...subtreeNotes(f.id));
+    subtreeCache.set(fid, ids);
+    return ids;
+  };
 
   const row = (note: NoteRow, snippet: string | null): LibRow => ({
     note, retired: !note.is_current, inThread: inThread.has(note.id), canReorder: inThread.has(note.id) && inThread.size > 1,
@@ -68,7 +88,10 @@ export function libraryTree(
   const node = (folder: FolderRow): LibFolderNode => {
     const folders = ws.library_folders.filter(f => f.parent_id === folder.id && showFolder(f.id)).map(node);
     const rows = byFolder.get(folder.id) ?? [];
-    return { folder, folders, rows, empty: folders.length === 0 && rows.length === 0 };
+    const itemIds = subtreeNotes(folder.id);
+    const inCount = itemIds.reduce((c, id) => c + (inThread.has(id) ? 1 : 0), 0);
+    const check: LibFolderNode["check"] = itemIds.length === 0 || inCount === 0 ? "none" : inCount === itemIds.length ? "all" : "some";
+    return { folder, folders, rows, empty: folders.length === 0 && rows.length === 0, check, itemIds };
   };
   const folders = searching ? [] : ws.library_folders.filter(f => !f.parent_id && showFolder(f.id)).map(node);
 

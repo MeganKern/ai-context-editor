@@ -242,6 +242,11 @@ export const BEHAVIOUR = {
     tip: "Stops sending it here — the item stays in the library",
     help: "Takes the library item out of this thread: from the next reply on, it's no longer sent here. The item itself isn't changed or deleted — it stays in the library and in every other thread that uses it. Replies already written keep what they were sent. Add it again at any time.",
   },
+  set_items: {
+    name: "Add or remove several library items at once",
+    tip: "Checks or unchecks a whole folder's items together",
+    help: "Adds or removes a set of library items in one step — one item, or every item in a folder and its subfolders. Checking a folder adds all of its items to this thread (appended in order; items already there stay put); unchecking removes them all. It's a single change: one entry in history, and the thread re-reads once. Items stay in the library either way. With no thread open, a new thread is made first.",
+  },
 
   // ── summaries ────────────────────────────────────────────────────────────
   summarize: {

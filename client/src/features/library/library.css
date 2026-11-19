@@ -110,6 +110,17 @@ button.ctxp-row-text:disabled { cursor: default; }
   opacity: .8; stroke-width: 2;
   transition: opacity .12s;
 }
+/* Folder line as [caret][select-all box][name] — the 18px caret + the box's reset margin put the
+   box exactly on the child notes' checkbox column (nested indent 18px, check margin -4px). */
+.ctxp-folder > .ctxp-row-line { align-items: center; gap: 0; }
+.ctxp-folder-caret-btn {
+  flex: none; width: 18px; height: 22px; margin-left: -4px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: none; color: var(--text-3); cursor: pointer;
+}
+.ctxp-folder-caret-btn:hover { color: var(--text); }
+.ctxp-row-line > .ctxp-folder-check { margin: 0; }
+.ctxp-folder > .ctxp-row-line > .ctxp-folder-name { margin-left: 3px; }
 .ctxp-folder.is-drop-target > .ctxp-folder-line {
   background: rgba(255,255,255,.08); border-radius: 6px;
 }

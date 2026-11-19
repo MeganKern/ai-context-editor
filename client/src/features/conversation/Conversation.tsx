@@ -5,12 +5,14 @@ import { useRows } from "../../session/rows.js";
 import { activity, useActivityOf } from "../../session/activity.js";
 import { conversationView } from "../../derive/cards.js";
 import { Menu } from "../../kit/Menu.js";
+import { Icon } from "../../kit/Icon.js";
 import { Card } from "./Card.js";
 import { BranchPoint } from "./BranchPoint.js";
 import { InsertForm } from "./InsertForm.js";
 import { SelectionBar } from "./SelectionBar.js";
 import { SummaryReview } from "./SummaryReview.js";
 import { useConvoScroll } from "./useConvoScroll.js";
+import { ThreadOutline } from "./ThreadOutline.js";
 import * as ops from "./ops.js";
 
 /** The cards in order, with what sits between them: branch points, summaries under review, the + to add or branch. */
@@ -24,7 +26,7 @@ export function Conversation() {
   const view = useMemo(() => conversationView(thread, ws, { expanded: new Set(Object.keys(open)), hideExcluded }), [thread, ws, open, hideExcluded]);
   const summarize = useActivityOf("summarize");
   const insertAfter = useActivityOf("insert-after");
-  const { scrollRef, onScroll, newSinceId } = useConvoScroll();
+  const { scrollRef, onScroll, newSinceId, jump, jumpTo } = useConvoScroll();
 
   const selecting = summarize !== null;
   const picked = new Set(summarize?.picked ?? []);
@@ -34,6 +36,8 @@ export function Conversation() {
   };
 
   return (
+    <div className="convo-wrap">
+    <ThreadOutline outline={view.outline} />
     <div className={`convo ${selecting ? "is-selecting" : ""} ${pending ? "is-pending" : ""}`} inert={pending} aria-busy={pending || undefined}
       ref={scrollRef} onScroll={onScroll} data-help-area="area.convo">
       {selecting && <SelectionBar />}
@@ -72,6 +76,15 @@ export function Conversation() {
         })}
         {view.reviewsAtEnd.map(s => <SummaryReview key={`r-${s.id}`} summary={s} />)}
       </div>
+    </div>
+      <button type="button" className={`convo-jump is-down ${jump === "down" ? "is-on" : ""}`}
+        onClick={() => jumpTo("down")} aria-label="Jump to latest" title="Jump to latest" tabIndex={jump === "down" ? 0 : -1}>
+        <Icon name="arrowDown" />
+      </button>
+      <button type="button" className={`convo-jump is-up ${jump === "up" ? "is-on" : ""}`}
+        onClick={() => jumpTo("up")} aria-label="Jump to top" title="Jump to top" tabIndex={jump === "up" ? 0 : -1}>
+        <Icon name="arrowUp" />
+      </button>
     </div>
   );
 }

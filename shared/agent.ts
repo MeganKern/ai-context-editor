@@ -5,7 +5,16 @@
  * your own setup brings (AGENT_EXTRAS), which no one outside it can see.
  */
 export const AGENT_SETTING_SOURCES = "user";
-export const AGENT_ENV: Record<string, string> = { CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
+export const AGENT_ENV: Record<string, string> = {
+  CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
+  CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+  // How long `claude -p` waits for background work (a workflow, a backgrounded command) the agent
+  // started before it gives up and drops the partial run. The default is 10 minutes — too short for
+  // real background work, which is then cut off and only a stub comes back. Raised so that work has
+  // time to finish and re-invoke the agent to deliver its result. (A stuck run still ends here, and
+  // can always be stopped sooner.) Tunable: this one number trades collection time for max hang.
+  CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "1800000",
+};
 export const AGENT_SWITCHED_OFF = ["CLAUDE.md files", "the workspace folder's project settings", "Claude Code's own memory"];
 export const AGENT_EXTRAS = "the hooks, skills, commands and agents in ~/.claude, and the MCP servers in ~/.claude.json or your claude.ai account";
 
@@ -43,6 +52,8 @@ export const AGENT_SYSTEM_PROMPT = [
   "The context provided is authoritative — use it, don't re-derive it.",
   "Your text output becomes a permanent card — write the deliverable, not your investigation process.",
   "Don't narrate (\"Let me look at...\"), don't hedge (\"I think...\"), state results directly.",
+  "Your final message IS the result, and nothing you leave running in the background is collected after you stop. Deliver the complete result now — never end with a progress note like \"it's running in the background, I'll report when it's done.\"",
+  "If you start background work (a workflow, or a command run in the background), wait for it to finish and fold its results into that final message before you stop.",
 ].join("\n");
 
 /**

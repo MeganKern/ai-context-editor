@@ -79,6 +79,9 @@ export const actions = {
                         output: z.object({ thread_id: id }) },
   reorder_items:      { input: z.object({ thread_id: id, ordered_ids: z.array(id) }), output: ok },
   remove_item:        { input: z.object({ thread_id: id, note_id: id }),        output: ok },
+  // Add or remove a set of library items in one atomic step (one note, or a whole folder's notes).
+  set_items:          { input: z.object({ ...inThread, note_ids: z.array(id), included: z.boolean() }).refine(needsAHome, HOME),
+                        output: z.object({ thread_id: id }) },
 
   // ── summaries: drafting → review → accepted (a card) or discarded ─────────
   summarize:          { input: z.object({ message_ids: z.array(id).min(1), instructions: z.string().optional() }),

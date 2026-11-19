@@ -1,5 +1,5 @@
 import type { MessageItem, QueueInfo, SummaryView, ThreadRow, ThreadSnapshot, WorkspaceSnapshot } from "../../../shared/snapshot.js";
-import { authorLabel, fullTime } from "./text.js";
+import { authorLabel, clip, fullTime } from "./text.js";
 import { byCreated } from "./threads.js";
 
 /**
@@ -60,6 +60,8 @@ export interface ConversationView {
   cards: CardView[];
   /** Summaries under review that sit after the last card. */
   reviewsAtEnd: SummaryView[];
+  /** A table of contents: visible, non-excluded cards with their markdown headings (folded kept). */
+  outline: OutlineEntry[];
   hasExcluded: boolean;
 }
 
@@ -108,6 +110,33 @@ function branchPoints(thread: ThreadSnapshot, threads: ThreadRow[]): Map<string,
     points.set(here, { key: self.branch_at, choices });
   }
   return points;
+}
+
+export interface OutlineHeading { text: string; level: number; index: number }
+export interface OutlineEntry { id: string; label: string; role: CardView["role"]; headings: OutlineHeading[] }
+
+const stripMd = (s: string): string =>
+  s.replace(/`([^`]+)`/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1").replace(/_([^_]+)_/g, "$1").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*_~]/g, "").trim();
+
+/** ATX headings in document order (skipping fenced code), aligned to the Nth <h*> the card renders. */
+function cardHeadings(md: string): OutlineHeading[] {
+  const out: OutlineHeading[] = [];
+  let fenced = false, i = 0;
+  for (const line of md.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+    if (fenced) continue;
+    const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (m) out.push({ level: m[1].length, text: stripMd(m[2]) || "Untitled", index: i++ });
+  }
+  return out;
+}
+
+function cardLabel(md: string, headings: OutlineHeading[]): string {
+  if (headings.length) return headings[0].text;
+  const first = md.split("\n").map(l => l.trim()).find(l => l.length > 0) ?? "";
+  return clip(stripMd(first), 40) || "Empty";
 }
 
 export function conversationView(
@@ -178,5 +207,12 @@ export function conversationView(
     };
   });
 
-  return { cards, reviewsAtEnd: reviewAt.get(END) ?? [], hasExcluded: path.some(m => m.excluded) };
+  const outline: OutlineEntry[] = [];
+  for (const item of path) {
+    if (item.excluded || !item.content.trim()) continue;   // visible cards only: excluded out, folded kept
+    const headings = cardHeadings(item.content);
+    outline.push({ id: item.id, label: cardLabel(item.content, headings), role: item.role, headings });
+  }
+
+  return { cards, reviewsAtEnd: reviewAt.get(END) ?? [], hasExcluded: path.some(m => m.excluded), outline };
 }

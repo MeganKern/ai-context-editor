@@ -3,6 +3,7 @@ import { estimateTokens, putBlob } from "../db/blobs.js";
 import { loadCards, type ThreadCard } from "./cards.js";
 import type { Role } from "../../../shared/snapshot.js";
 import { MARKER_RE, extractNoteIds } from "../../../shared/note-markers.js";
+import { REPLY_SYSTEM_PROMPT } from "../../../shared/reply.js";
 
 /**
  * What the model is sent, built one way for every purpose: a reply, an agent's brief, a summary's
@@ -124,7 +125,10 @@ export interface WalkResult {
   inlineNotes: Set<string>;
 }
 
-const noteText = (name: string, content: string) => `## Note: ${name}\n${content}`;
+// Attached reference material, clearly bounded (open and close) and labelled as a note — so the
+// model can tell where it starts and ends, and that it's context the user attached, not the user's
+// own words or an instruction. Used for inline mentions and library items alike.
+const noteText = (name: string, content: string) => `<reference name=${JSON.stringify(name)}>\n${content}\n</reference>`;
 
 /**
  * The one rendering of cards as the model gets them: walks the cards in order and decides what each
@@ -199,7 +203,7 @@ function mergeAdjacentRoles(walked: WalkedMessage[]): ContextPlan["messages"] {
 
 export interface ContextPlan extends Omit<WalkResult, "messages"> {
   /** What goes before the conversation: the system message, then the library items in use. */
-  system: { kind: "system_message" | "note"; ref: string | null; text: string; tokens: number }[];
+  system: { kind: "system_message" | "note" | "preamble"; ref: string | null; text: string; tokens: number }[];
   messages: { role: "user" | "assistant"; content: string; placeholder?: boolean }[];
   tokens: number;
   error: string | null;
@@ -212,6 +216,12 @@ export function planContext(inputs: ContextInputs, purpose: Purpose, opts?: { li
 
   const system: ContextPlan["system"] = [];
   const head: ManifestPart[] = [];
+  // A reply (and its preview) has no tools: it only reads this thread and writes text. Ground the
+  // model in that, first, so it answers from the curated context instead of simulating actions it
+  // can't take. The model path only — agents genuinely have tools and get AGENT_SYSTEM_PROMPT.
+  if (purpose === "reply" || purpose === "preview") {
+    system.push({ kind: "preamble", ref: null, text: REPLY_SYSTEM_PROMPT, tokens: estimateTokens(REPLY_SYSTEM_PROMPT) });
+  }
   if (inputs.systemMessage) {
     system.push({ kind: "system_message", ref: null, text: inputs.systemMessage.text, tokens: estimateTokens(inputs.systemMessage.text) });
     head.push({ kind: "system_message", text_hash: inputs.systemMessage.text_hash });

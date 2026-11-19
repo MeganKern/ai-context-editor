@@ -15,24 +15,34 @@ import { clip, nounOf } from "../../derive/text.js";
 
 /** With every reply in the thread beside the panel; the row lights where it lands. */
 export async function addItem(thread: ThreadSnapshot, noteId: string): Promise<boolean> {
-  const ok = !!(await run("place_item", { thread_id: thread.thread.id, note_id: noteId }));
+  const ok = !!(await run("set_items", { thread_id: thread.thread.id, note_ids: [noteId], included: true }));
   if (ok) rows.flash(noteId);
   return ok;
 }
 
 /** Out of this thread. It stays in the library. */
 export async function removeFromThread(thread: ThreadSnapshot, noteId: string, name: string): Promise<void> {
-  if (await run("remove_item", { thread_id: thread.thread.id, note_id: noteId })) {
+  if (await run("set_items", { thread_id: thread.thread.id, note_ids: [noteId], included: false })) {
     notices.toast(`"${clip(name, 36)}" is no longer used in this ${nounOf(thread)}`);
   }
 }
 
 /** Into a thread that doesn't exist yet: the server makes one with the item in it, and it opens. */
 export async function addToNewThread(workspaceId: string, noteId: string): Promise<void> {
-  const r = await run("place_item", { thread_id: null, workspace_id: workspaceId, note_id: noteId });
+  const r = await run("set_items", { thread_id: null, workspace_id: workspaceId, note_ids: [noteId], included: true });
   if (!r) return;
   navigate({ threadId: r.thread_id });
   rows.flash(noteId);
+}
+
+/** Add or remove every item in a folder (and its subfolders) at once — one atomic action. */
+export async function setFolder(thread: ThreadSnapshot | null, workspaceId: string, noteIds: string[], included: boolean): Promise<void> {
+  if (!noteIds.length) return;
+  const r = await run("set_items", { thread_id: thread?.thread.id ?? null, workspace_id: thread ? undefined : workspaceId, note_ids: noteIds, included });
+  if (!r) return;
+  if (!thread) navigate({ threadId: r.thread_id });
+  if (included) noteIds.forEach(id => rows.flash(id));
+  else notices.toast(`${noteIds.length} item${noteIds.length === 1 ? "" : "s"} removed from this ${nounOf(thread)}`);
 }
 
 /** Saves an item's name and/or text, once; the text shown stands in until the server's copy (and its new hash) arrive. */

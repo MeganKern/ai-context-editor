@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BEHAVIOUR as B } from "../../../../shared/behaviour.js";
 import { run, useModel } from "../../data/model.js";
 import { draggedItem, endDrag } from "../../data/drag.js";
@@ -58,6 +58,9 @@ function LibraryFolder({ node }: { node: LibFolderNode }) {
   const [over, setOver] = useState(false);
   const toggle = () => toggleListed("openLibraryFolders", folder.id);
   const openIfClosed = () => { if (!expanded) toggle(); };
+  const cbRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (cbRef.current) cbRef.current.indeterminate = node.check === "some"; }, [node.check]);
+  const toggleAll = () => void ops.setFolder(scope.thread, ws.workspace.id, node.itemIds, node.check !== "all");
 
   const onDragOver = (e: React.DragEvent) => {
     if (draggedItem(e)?.kind === "library") { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (!over) setOver(true); }
@@ -96,11 +99,23 @@ function LibraryFolder({ node }: { node: LibFolderNode }) {
         {renaming ? (
           <NameInput name={folder.name} onDone={name => { rows.rename(null); if (name) void run("rename_folder", { folder_id: folder.id, name }); }} />
         ) : (
-          <button className="ctxp-row-text" onClick={toggle} aria-expanded={expanded}>
-            <Icon name={expanded ? "chevronDown" : "chevronRight"} className="ctxp-caret" />
-            <span className="ctxp-name">{folder.name}</span>
-            {empty && <span className="ctxp-tag">empty</span>}
-          </button>
+          <>
+            <button className="ctxp-folder-caret-btn" onClick={toggle} aria-expanded={expanded}
+              aria-label={expanded ? `Collapse ${folder.name}` : `Expand ${folder.name}`}>
+              <Icon name={expanded ? "chevronDown" : "chevronRight"} className="ctxp-caret" />
+            </button>
+            {scope.thread && node.itemIds.length > 0 && (
+              <label className="check ctxp-thread-check ctxp-folder-check"
+                title={node.check === "all" ? "Remove all items in this folder from the thread" : "Add all items in this folder to the thread"}>
+                <input ref={cbRef} type="checkbox" checked={node.check === "all"} onChange={toggleAll}
+                  aria-label={`${node.check === "all" ? "Remove" : "Add"} all ${node.itemIds.length} items in ${folder.name}`} />
+              </label>
+            )}
+            <button className="ctxp-row-text ctxp-folder-name" onClick={toggle} aria-expanded={expanded}>
+              <span className="ctxp-name">{folder.name}</span>
+              {empty && <span className="ctxp-tag">empty</span>}
+            </button>
+          </>
         )}
         {!renaming && <span className="ctxp-row-actions"><Menu label={`${folder.name} folder actions`} className="act act-more" icon="more" items={menu} /></span>}
       </div>
