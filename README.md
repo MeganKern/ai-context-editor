@@ -6,6 +6,8 @@ Many tools automatically manage context for you as a token budget to keep an age
 
 You can easily add reference material, constraints, and half-formed thoughts first, then ask AI once the context represents what you mean. Messages can be edited in place, pinned, cut, folded, and shared across threads through a library. Summarize multiple messages into one, with prompt control and manual final editing. The model always responds to the current state of the thread, not the true chronological reality. However, every AI response's provenance is retained even as the thread morphs. You can also branch threads at any point.
 
+Additionally, the difference between what the AI first wrote and what you kept, excluded, or reworded is itself a record of your judgment and voice. This data is retained across the thread's life. It is data about you that can serve as raw material for any future individualized model alignment use cases.
+
 To add agent functionality connect Claude Code CLI, this defaults to off in settings. An agent can be launched from within the thread to run a task against your workspace. It can edit files, search code, or answer research questions, streaming its progress live. Its final output lands as a message you can pin, exclude, or build on.
 
 All UI buttons have an explanation of their action, accessed by holding Alt (⌥ on Mac) and clicking.
